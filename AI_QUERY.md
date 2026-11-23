@@ -28,6 +28,10 @@
 
 `jcr_quartile` 与 `sjr_quartile` 均为最佳分区。若用户问“某学科 Q1”，必须展开 JCR `categories` 并将学科与同一对象的分区配对。不要用跨学科最佳分区作答。
 
+`wos_indexes` 是 SCIE/SSCI/AHCI/ESCI 四份新名录的匹配结果，`languages` 为来源提供的出版语言，两者均为 JSON 数组。用 `python -m journaldb search --wos-index SSCI` 或 API `wos_index=SSCI` 进行精确索引筛选。四份名录没有源年份，edition=`undated`、metric_year=NULL；不得用 JCR 2025 年字段替这些名单推断年份。空数组仅表示未匹配本地名录。
+
+网页按用户偏好将 CAS 原始分区 1–4 显示为 Q1–Q4；数据库 `cas_zone` 与 `cas` 筛选参数仍为 1–4。这是 CAS 的显示映射，与 JCR/SJR 各自的分区体系分别保留。
+
 ## Python / SQL 示例
 
 ```python

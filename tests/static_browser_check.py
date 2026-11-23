@@ -14,7 +14,8 @@ def run(url):
         page.on("request", lambda request: requests.append(request.url))
         page.goto(url, wait_until="networkidle", timeout=60000)
         expect(page.locator("#rows .journal-btn")).to_have_count(50, timeout=60000)
-        expect(page.locator("#statline")).to_contain_text("35,816")
+        total = page.evaluate("async()=> (await (await fetch('/api/meta')).json()).stats.journals")
+        expect(page.locator("#statline")).to_contain_text(f"{total:,}")
         checks.append("static snapshot initial load")
         page.locator("#language").select_option("zh")
         expect(page.locator("html")).to_have_attribute("lang", "zh-CN")
@@ -47,6 +48,28 @@ def run(url):
         assert all(r["ft50"] and r["utd24"] for r in result["body"]["results"])
         assert all(not r["ft50"] for r in api({"ft50": "0"})["body"]["results"])
         checks.append("combined and negative membership filters")
+        wos = api({"wos_index": "SSCI", "limit": "500"})
+        assert wos["status"] == 200 and wos["body"]["total"] > 3000
+        assert all("SSCI" in record["wos_indexes"] for record in wos["body"]["results"])
+        page.locator("#clear").click()
+        expect(page.locator("#rows .journal-btn")).to_have_count(50)
+        page.locator("#wos_index").select_option("SSCI")
+        expect(page.locator("#result-summary")).to_contain_text(f"共 {wos['body']['total']:,} 条")
+        assert all("SSCI" in text for text in page.locator("#rows tr td:nth-child(5)").all_inner_texts())
+        page.locator("#clear").click()
+        expect(page.locator("#rows .journal-btn")).to_have_count(50)
+        checks.append("WoS index membership, real-time filter and visible index column")
+        expect(page.locator('#cas option[value="1"]')).to_have_text("Q1")
+        page.locator("#cas").select_option("1")
+        cas = api({"cas": "1"})["body"]
+        expect(page.locator("#result-summary")).to_contain_text(f"共 {cas['total']:,} 条")
+        assert all(text.startswith("Q1") for text in page.locator("#rows tr td:nth-child(9)").all_inner_texts())
+        page.locator("#rows .journal-btn").first.click()
+        expect(page.locator("#detail-body .profile")).to_contain_text("Q1")
+        page.keyboard.press("Escape")
+        page.locator("#clear").click()
+        expect(page.locator("#rows .journal-btn")).to_have_count(50)
+        checks.append("CAS Q1–Q4 display maps to original numeric filter")
         assert api({"min_if": "NaN"})["status"] == 400
         assert api({"abdc": "D"})["status"] == 400
         assert api({"ft50": "2"})["status"] == 400

@@ -11,6 +11,7 @@
     .brand{display:flex;align-items:center;justify-content:space-between;gap:12px}.brand #language{height:32px;border:1px solid #d0d5dd;border-radius:6px;background:#fff;color:#344054;padding:4px 8px}.filters summary{padding:13px 16px;cursor:pointer;color:#344054;font-size:14px;font-weight:600;list-style:none}.filters summary::-webkit-details-marker{display:none}.filters summary::after{content:"Show";float:right;color:#667085;font-size:12px;font-weight:400}.filters[open] summary{border-bottom:1px solid var(--line)}.filters[open] summary::after{content:"Hide"}.filter-content{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;padding:14px 16px}.filters>.filter-content{border:0}.filters h3{display:none}@media(max-width:800px){.filter-content{grid-template-columns:repeat(2,minmax(0,1fr));padding:12px}.filter-actions{grid-column:1/-1}}
   html:lang(zh-CN) .filters summary::after{content:"展开"}html:lang(zh-CN) .filters[open] summary::after{content:"收起"}.statline{white-space:normal}.drawer-close{flex-shrink:0}.drawer-head h2{min-width:0;overflow-wrap:anywhere}.export[aria-disabled="true"]{pointer-events:none;opacity:.45}
     .checkgrid label{display:inline-flex;align-items:center;gap:6px;line-height:1.2;white-space:nowrap}.checkgrid input[type="checkbox"]{width:14px;height:14px;flex:0 0 14px;margin:0;padding:0;vertical-align:middle}
+    @media(min-width:1100px){.filter-content{grid-template-columns:repeat(6,minmax(0,1fr))}}table{min-width:1070px}
   </style>
 </head>
 <body>
@@ -21,7 +22,8 @@
       <details class="filters" id="filter-panel" open><summary data-i18n="filters">Filters</summary><div class="filter-content">
         <div class="filter-group"><label for="abdc">ABDC 分级</label><select id="abdc" data-param="abdc"><option value="">全部</option><option>A*</option><option>A</option><option>B</option><option>C</option></select></div>
         <div class="filter-group"><label for="ajg">AJG / ABS 2024</label><select id="ajg" data-param="ajg"><option value="">全部</option><option>4*</option><option>4</option><option>3</option><option>2</option><option>1</option></select></div>
-        <div class="filter-group"><label for="cas">中科院分区</label><select id="cas" data-param="cas"><option value="">全部</option><option value="1">1 区</option><option value="2">2 区</option><option value="3">3 区</option><option value="4">4 区</option></select></div>
+        <div class="filter-group"><label for="wos_index" data-i18n="wos">WoS index</label><select id="wos_index" data-param="wos_index"><option value="">All</option><option>SCIE</option><option>SSCI</option><option>AHCI</option><option>ESCI</option></select></div>
+        <div class="filter-group"><label for="cas">中科院分区</label><select id="cas" data-param="cas"><option value="">全部</option><option value="1">Q1</option><option value="2">Q2</option><option value="3">Q3</option><option value="4">Q4</option></select></div>
         <div class="filter-group"><label for="jcr_quartile">JCR 分区</label><select id="jcr_quartile" data-param="jcr_quartile"><option value="">全部</option><option>Q1</option><option>Q2</option><option>Q3</option><option>Q4</option></select></div>
         <div class="filter-group"><label for="sjr_quartile">SJR 分区</label><select id="sjr_quartile" data-param="sjr_quartile"><option value="">全部</option><option>Q1</option><option>Q2</option><option>Q3</option><option>Q4</option></select></div>
         <div class="filter-group"><label for="subject">学科关键词</label><input id="subject" data-param="subject" placeholder="如 Management、Oncology"></div>
@@ -33,16 +35,16 @@
       <section aria-live="polite">
         <form class="searchbar" id="searchform"><label class="visually-hidden" for="q" data-i18n="searchLabel">Search journals</label><input id="q" data-param="q" autocomplete="off" placeholder="Search title, ISSN, or subject" aria-label="Search title, ISSN, or subject"><select id="sort" data-param="sort" aria-label="Sort"><option value="title" data-i18n="sortTitle">Sort by title</option><option value="impact_factor" data-i18n="sortJif">Sort by JIF</option><option value="sjr" data-i18n="sortSjr">Sort by SJR</option></select><button class="button" type="submit" data-i18n="search">Search</button></form>
         <div class="results-head"><div><h3 data-i18n="results">Results</h3><span id="result-summary">Ready</span></div><a class="export" id="export-link" href="/api/export.csv" data-i18n="export">Export CSV</a></div>
-        <div class="table-wrap"><table><thead><tr><th aria-sort="ascending"><button data-sort="title" data-i18n="journal">Journal</button></th><th data-i18n="abdc">ABDC 2025</th><th data-i18n="ajg">AJG 2024</th><th data-i18n="lists">Lists</th><th><button data-sort="impact_factor">JIF</button></th><th data-i18n="jcr">JCR best quartile</th><th><button data-sort="sjr" data-i18n="sjr">SJR / best quartile</button></th><th data-i18n="cas">CAS</th><th data-i18n="subjects">Subjects</th></tr></thead><tbody id="rows"><tr><td colspan="9" class="loading">Loading…</td></tr></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th aria-sort="ascending"><button data-sort="title" data-i18n="journal">Journal</button></th><th data-i18n="abdc">ABDC 2025</th><th data-i18n="ajg">AJG 2024</th><th data-i18n="lists">Lists</th><th data-i18n="wos">WoS index</th><th><button data-sort="impact_factor">JIF</button></th><th data-i18n="jcr">JCR best quartile</th><th><button data-sort="sjr" data-i18n="sjr">SJR / best quartile</button></th><th data-i18n="cas">CAS</th><th data-i18n="subjects">Subjects</th></tr></thead><tbody id="rows"><tr><td colspan="10" class="loading">Loading…</td></tr></tbody></table></div>
         <nav class="pager" aria-label="Results pages"><button class="button alt" id="prev" type="button" data-i18n="previous">Previous</button><span id="page-label">—</span><button class="button alt" id="next" type="button" data-i18n="next">Next</button></nav>
       </section>
     </div>
-    <footer><details><summary data-i18n="sources">Data and sources</summary><div id="notes">Loading…</div><p data-i18n="typeNote">Publication-type filtering applies only to records with an SJR type.</p><ul class="source-list" id="source-list"></ul></details></footer>
+    <footer><details><summary data-i18n="sources">Data and sources</summary><div id="notes">Loading…</div><p data-i18n="typeNote">Publication-type filtering applies only to records with an SJR type.</p><p data-i18n="casNote">CAS uses Q1–Q4 as display labels for source zones 1–4.</p><ul class="source-list" id="source-list"></ul></details></footer>
   </main>
   <dialog id="detail"><div class="drawer-head"><h2 id="detail-title">期刊详情</h2><button class="drawer-close" id="close-detail" aria-label="关闭详情">×</button></div><div class="drawer-body" id="detail-body"></div></dialog>
-  <script src="i18n.js?v=620693bce2c5"></script>
-  <script src="static-client.js?v=198ca530b63f"></script>
-  <script src="app.js?v=c89b10cb41b6"></script>
+  <script src="i18n.js?v=d3d829780e70"></script>
+  <script src="static-client.js?v=330c7ab99da7"></script>
+  <script src="app.js?v=1a8777d8811d"></script>
 
 </body>
 </html>

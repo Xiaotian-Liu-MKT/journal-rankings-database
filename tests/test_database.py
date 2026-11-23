@@ -26,6 +26,13 @@ class DatabaseTests(unittest.TestCase):
                 expected = len(list(csv.reader(f, delimiter=delimiter))) - 1
             actual = self.con.execute("SELECT sum(row_count) FROM sources WHERE filename=?", (filename,)).fetchone()[0]
             self.assertEqual(expected, actual)
+        for filename in ("SCIE.csv", "SSCI.csv", "AHCI.csv", "ESCI.csv"):
+            with (ROOT / filename).open(encoding="utf-8-sig", newline="") as f:
+                expected = len(list(csv.reader(f))) - 1
+            source = self.con.execute("SELECT * FROM sources WHERE filename=?", (filename,)).fetchone()
+            self.assertIsNotNone(source)
+            self.assertEqual((source["system"], source["edition"], source["metric_year"], source["row_count"]),
+                             (Path(filename).stem, "undated", None, expected))
         self.assertEqual(self.con.execute("SELECT count(*) FROM sources WHERE duplicate_of IS NOT NULL").fetchone()[0], 1)
 
     def test_integrity_and_read_only(self):
@@ -79,6 +86,29 @@ class DatabaseTests(unittest.TestCase):
         multi = self.con.execute("SELECT journal_id FROM observations JOIN sources USING(source_id) WHERE system='JCR' AND json_array_length(metrics,'$.categories')>1 LIMIT 1").fetchone()[0]
         self.assertTrue(any(len(o["metrics"].get("categories", [])) > 1 for o in detail(self.con, multi)["observations"] if o["system"] == "JCR"))
 
+    def test_wos_indexes_preserve_rows_and_support_filtering(self):
+        stats = meta(self.con)["stats"]
+        self.assertEqual(set(stats["wos_index_counts"]), {"SCIE", "SSCI", "AHCI", "ESCI"})
+        self.assertTrue(all(count > 0 for count in stats["wos_index_counts"].values()))
+        overlap = self.con.execute("SELECT journal_id FROM catalogue WHERE json_array_length(wos_indexes) > 1 LIMIT 1").fetchone()
+        self.assertIsNotNone(overlap)
+        journal = detail(self.con, overlap["journal_id"])
+        self.assertGreater(len(journal["journal"]["wos_indexes"]), 1)
+        self.assertIsInstance(journal["journal"]["languages"], list)
+        for index in journal["journal"]["wos_indexes"]:
+            filtered = search(self.con, q=journal["journal"]["title"], wos_index=index, limit=500)
+            self.assertIn(journal["journal"]["journal_id"], {row["journal_id"] for row in filtered["results"]})
+        wos = next(row for row in journal["observations"] if row["system"] in {"SCIE", "SSCI", "AHCI", "ESCI"})
+        self.assertEqual(wos["edition"], "undated")
+        self.assertIsNone(wos["metric_year"])
+        self.assertEqual(wos["system"], wos["metrics"]["index"])
+        self.assertIn("Publisher name", wos["raw"])
+        self.assertEqual(wos["metrics"]["publisher"], wos["raw"]["Publisher name"].strip())
+        self.assertIsInstance(wos["metrics"]["languages"], list)
+        self.assertIsInstance(wos["metrics"]["categories"], list)
+        supplied_issns = {issn(wos["raw"][key]) for key in ("ISSN", "eISSN")} - {None}
+        self.assertTrue(supplied_issns & set(journal["journal"]["issns"]))
+
     def test_types_pagination_and_numeric_filters(self):
         page1 = search(self.con, source_type="journal", min_if="5", sort="impact_factor", order="desc", limit=5)
         page2 = search(self.con, source_type="journal", min_if="5", sort="impact_factor", order="desc", limit=5, offset=5)
@@ -87,7 +117,7 @@ class DatabaseTests(unittest.TestCase):
         self.assertGreater(search(self.con, source_type="book series")["total"], 0)
 
     def test_query_validation_and_literal_safety(self):
-        for params in ({"sort": "title; DROP TABLE journals"}, {"limit": 0}, {"offset": -1}, {"min_if": "NaN"}, {"abdc": "D"}):
+        for params in ({"sort": "title; DROP TABLE journals"}, {"limit": 0}, {"offset": -1}, {"min_if": "NaN"}, {"abdc": "D"}, {"wos_index": "JCR"}):
             with self.assertRaises(ValueError):
                 search(self.con, **params)
         search(self.con, q="' OR 1=1 --")

@@ -97,6 +97,8 @@ print(detail['observations'])
 ```
 
 保留空值、0、False 的差别。JCR 学科分区见同一 categories 对象，不能将最佳分区归给所有学科。
+`wos_indexes` 为 SCIE/SSCI/AHCI/ESCI 四份未标年份名录的匹配数组；`languages` 为出版语言。
+四份名录的 edition 为 undated、metric_year 为 null，与 JCR 指标年份分开。空数组仅表示未匹配本地名录。
 """
         (output / "AI_QUERY.md").write_text(guide, encoding="utf-8")
         total = sum(p.stat().st_size for p in output.rglob("*") if p.is_file())

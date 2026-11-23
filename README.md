@@ -2,9 +2,11 @@
 
 **在线使用：[打开期刊索引室](https://xiaotian-liu-mkt.github.io/journal-rankings-database/)**
 
-合并 8 份本地期刊数据，保留 35,816 个刊物条目、94,716 条来源记录。在线版无需安装，也无需启动 Python，支持组合筛选、历史评级、来源详情和 CSV 导出。
+合并本地期刊评级、指标及 WoS 索引名录。在线版无需安装，也无需启动 Python，支持组合筛选、历史评级、来源详情和 CSV 导出，条目和来源数量显示在网页顶部。
 
 界面采用简洁的白底表格布局，首次打开默认英文。可在右上角切换 English / 中文，浏览器会记住选择；切换语言保留当前查询与筛选，期刊名和原始来源字段保持原文。
+
+筛选实时生效，无需点击 Apply。可按 SCIE、SSCI、AHCI 或 ESCI 查询对应本地名录中的期刊；这些名录未标注年份，与 JCR 指标年份分别保留。
 
 仓库发布代码及 `site/` 静态数据快照。本地原始文件、SQLite、CSV/JSONL 导出不上传 Git。原始资料保留在本地，以下 CLI 命令用于本地完整项目。
 
@@ -46,6 +48,7 @@ python -m journaldb search "0093-5301"
 python -m journaldb search --abdc 'A*' --ajg '4*' --ft50 1 --utd24 1
 python -m journaldb search --subject Management --min-if 5 --sort impact_factor --order desc
 python -m journaldb search --source-type journal --cas 1 --limit 50 --offset 0
+python -m journaldb search --wos-index SSCI --abdc 'A*'
 python -m journaldb show <journal_id>
 python -m journaldb meta
 ```
@@ -65,12 +68,15 @@ SQLite 位于 `data/journals.sqlite`。不启动网页也能直接用 Python `sq
 | 中科院 | 中科院分区2025完整版.xlsx | 2025 |
 | FT50 | FT50.txt | 本地表标注 FT50 2026，有效日期保留在原始字段 |
 | UTD24 | UTD24.txt | 本地表检查日期为 2026/7/26 |
+| WoS 索引名录 | SCIE.csv、SSCI.csv、AHCI.csv、ESCI.csv | 未标年份快照；四种索引分别保留，允许同刊多索引 |
 
 两份 JCR 文件字节完全相同，只导入一次，在 `sources.duplicate_of` 中保留另一文件的关联。ABDC 一个工作表对应一个来源版本，因此来源版本数大于文件数。
 
 JCR 与 SJR 的概览分区均为各自的最佳分区，不可互换；JCR 的各个学科及名次保存在详情 `metrics.categories`。学科关键词搜索综合不同来源的学科标签，不能据此把最佳分区归给指定学科。
 
 中科院原表没有学科或大类/小类字段，保存为“源表分区”，不做推断。SCImago 包含非期刊类型，默认全部保留；只查 SJR 标注的期刊可筛选 `source_type=journal`。该类型字段仅来自 SJR，使用类型筛选会排除没有 SJR 类型数据的条目。
+
+网页中 CAS 的原始 1–4 分区按用户偏好显示为 Q1–Q4，数据库与 API 仍保留原始数值；CAS、JCR、SJR 三套指标分别存储。
 
 空值表示本地没有当前数据、源字段缺失或当前来源值冲突。不会用历史 ABDC 评级冒充当前评级，也不会把缺失值改为零。FT50/UTD24 为 false 仅表示未匹配本地名单，不是对官方收录状态的判断。
 

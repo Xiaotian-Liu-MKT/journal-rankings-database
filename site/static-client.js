@@ -96,6 +96,8 @@
     const minIF = nullableNumber(search.get('min_if'), msg('Minimum JIF', '最低 JIF'));
     const sort = search.get('sort') || 'title'; const order = search.get('order') || 'asc';
     const ft50 = booleanParameter(search, 'ft50'), utd24 = booleanParameter(search, 'utd24');
+    const wosIndex = search.get('wos_index');
+    if (wosIndex && !['SCIE', 'SSCI', 'AHCI', 'ESCI'].includes(wosIndex)) throw new Error(msg('Invalid WoS index.', 'WoS 索引参数无效。'));
     if (!['title', 'impact_factor', 'sjr'].includes(sort)) throw new Error(msg('Unsupported sort field.', '不支持的排序字段。'));
     if (!['asc', 'desc'].includes(order)) throw new Error(msg('Sort order must be asc or desc.', '排序方向必须为 asc 或 desc。'));
     exact.forEach(([parameter, , allowed]) => { if (search.get(parameter) && !allowed.has(search.get(parameter))) throw new Error(msg(`Invalid ${parameter} parameter.`, `${parameter} 参数无效。`)); });
@@ -106,6 +108,7 @@
       if (exact.some(([parameter, field]) => search.get(parameter) && String(record[field] ?? '') !== search.get(parameter))) return false;
       if (ft50 !== null && record.ft50 !== ft50) return false;
       if (utd24 !== null && record.utd24 !== utd24) return false;
+      if (wosIndex && !(record.wos_indexes || []).includes(wosIndex)) return false;
       if (search.get('subject') && !normalize(record.subjects?.join(' ')).includes(normalize(search.get('subject')))) return false;
       return minIF === null || (record.impact_factor !== null && record.impact_factor !== undefined && Number(record.impact_factor) >= minIF);
     });

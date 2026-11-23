@@ -46,7 +46,7 @@
   }
   function messageRow(message) {
     const row = node('tr');
-    row.append(node('td', message, {colspan: '9', class: 'empty'}));
+    row.append(node('td', message, {colspan: '10', class: 'empty'}));
     $('#rows').replaceChildren(row);
   }
   function render(data) {
@@ -63,9 +63,12 @@
       if (record.ft50) lists.append(badge('FT50'));
       if (record.utd24) lists.append(badge('UTD24'));
       if (!lists.childNodes.length) lists.append(node('span', '—', {class: 'na'}));
+      const indexes = node('div', undefined, {class: 'badges'});
+      (record.wos_indexes || []).forEach(index => indexes.append(badge(index)));
+      if (!indexes.childNodes.length) indexes.append(node('span', '—', {class: 'na'}));
       const subjects = record.subjects?.join(tr('; ', '；')) || '—';
-      const zone = record.cas_zone == null ? '—' : tr(`Zone ${record.cas_zone}`, `${record.cas_zone} 区`) + (record.cas_top ? ' · Top' : '');
-      row.append(title, cell(badge(record.abdc)), cell(badge(record.ajg)), cell(lists),
+      const zone = record.cas_zone == null ? '—' : `Q${record.cas_zone}` + (record.cas_top ? ' · Top' : '');
+      row.append(title, cell(badge(record.abdc)), cell(badge(record.ajg)), cell(lists), cell(indexes),
         cell(node('span', display(record.impact_factor), {class: 'num'})), cell(badge(record.jcr_quartile)),
         cell(node('span', display(record.sjr) + (record.sjr_quartile ? ' · ' + record.sjr_quartile : ''), {class: 'num'})),
         cell(zone), cell(node('span', subjects, {class: 'subjects', title: subjects})));
@@ -118,6 +121,7 @@
     publisher: ['Publisher', '出版商'], country: ['Country / region', '国家 / 地区'],
     categories: ['Categories', '学科'], category: ['Category', '学科'], quartile: ['Quartile', '分区'], rank: ['Rank', '排名'],
     zone: ['Zone', '分区'], top: ['Top', 'Top'], open_access: ['Open access', '开放获取'],
+    index: ['WoS index', 'WoS 索引'], languages: ['Languages', '出版语言'], publisher_address: ['Publisher address', '出版商地址'],
     h_index: ['H-index', 'H 指数'], source_type: ['Publication type', '出版物类型'], areas: ['Areas', '领域'],
     sourceid: ['SJR source ID', 'SJR 来源 ID'], start_year: ['Start year', '创刊年'],
     member: ['List inclusion', '名单收录'], web_of_science: ['Web of Science index', 'Web of Science 索引'],
@@ -139,8 +143,10 @@
       ['ISSN', journal.issns.join(' · ') || '—'],
       [tr('Publisher', '出版商'), journal.publisher], [tr('Country / region', '国家 / 地区'), journal.country],
       ['ABDC 2025', journal.abdc], ['AJG 2024', journal.ajg], ['JIF', journal.impact_factor],
+      [tr('WoS indexes', 'WoS 索引'), journal.wos_indexes?.join(' · ') || null],
+      [tr('Languages', '出版语言'), journal.languages?.join(' · ') || null],
       [tr('JCR best quartile', 'JCR 最佳分区'), journal.jcr_quartile], ['SJR', journal.sjr],
-      [tr('CAS zone', '中科院分区'), journal.cas_zone == null ? null : tr(`Zone ${journal.cas_zone}`, `${journal.cas_zone} 区`)]
+      [tr('CAS', '中科院分区'), journal.cas_zone == null ? null : `Q${journal.cas_zone}`]
     ];
     for (const [label, value] of fields) {
       const item = node('div');
@@ -156,13 +162,14 @@
       const top = node('div', undefined, {class: 'obs-top'});
       const location = [observation.source_file, observation.source_sheet,
         tr(`Row ${observation.source_row}`, `第 ${observation.source_row} 行`)].filter(Boolean).join(' / ');
-      top.append(node('b', `${observation.system} · ${observation.edition}`), node('small', location));
+      const edition = observation.edition === 'undated' ? tr('Undated snapshot', '未标年份快照') : observation.edition;
+      top.append(node('b', `${observation.system} · ${edition}`), node('small', location));
       item.append(top, node('div', tr('Source title: ', '原刊名：') + observation.title + tr(' · Matched by: ', ' · 匹配方式：') + observation.match_method));
       const chips = node('div', undefined, {class: 'metric-list'});
       for (const [key, value] of Object.entries(observation.metrics)) {
         if (value == null || value === '') continue;
         if (Array.isArray(value)) value.forEach(entry => chips.append(node('span', `${metricName(key)}: ${metricValue(entry)}`)));
-        else chips.append(node('span', `${metricName(key)}: ${metricValue(value)}`));
+        else chips.append(node('span', `${metricName(key)}: ${observation.system === 'CAS' && key === 'zone' ? `Q${value}` : metricValue(value)}`));
       }
       item.append(chips);
       if (observation.quality_flags.length) item.append(node('p', tr('Data flags: ', '数据标记：') + observation.quality_flags.join('; '), {class: 'source-note'}));

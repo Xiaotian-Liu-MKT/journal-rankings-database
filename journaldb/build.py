@@ -53,6 +53,9 @@ def dumps(value):
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
 
 
+WOS_INDEXES = ("SCIE", "SSCI", "AHCI", "ESCI")
+
+
 def csv_rows(path, delimiter=","):
     # Preserve duplicate column names (SCImago contains Publisher twice).
     with path.open(encoding="utf-8-sig", newline="") as f:
@@ -88,6 +91,13 @@ def parse_csv(path, system):
         elif system == "AJG":
             metrics = {"rating": text(raw["AJG 2024"]), "field": raw["Field"], "publisher": raw["Publisher"]}
             title, ids = raw["Journal Title"], [raw["Print ISSN"], raw["E-ISSN"]]
+        elif system in WOS_INDEXES:
+            split = lambda value: [part.strip() for part in text(value).split("|") if part.strip()]
+            metrics = {"index": system, "publisher": text(raw["Publisher name"]),
+                       "publisher_address": text(raw["Publisher address"]),
+                       "languages": split(raw["Languages"]),
+                       "categories": split(raw["Web of Science Categories"])}
+            title, ids = raw["Journal title"], [raw["ISSN"], raw["eISSN"]]
         else:
             metrics = {"member": True, **raw}
             title, ids = raw["Journal title"], []
@@ -149,7 +159,7 @@ def build(root=ROOT, destination=DEFAULT_DB):
     try:
         con.executescript((Path(__file__).with_name("schema.sql")).read_text(encoding="utf-8"))
         con.execute("INSERT INTO metadata VALUES (?,?)", ("built_at", datetime.now(timezone.utc).isoformat()))
-        con.execute("INSERT INTO metadata VALUES (?,?)", ("schema_version", "1"))
+        con.execute("INSERT INTO metadata VALUES (?,?)", ("schema_version", "2"))
         paths = {p.name: p for p in root.iterdir() if p.is_file()}
         jobs = []
         for p in paths.values():
@@ -166,8 +176,15 @@ def build(root=ROOT, destination=DEFAULT_DB):
             elif p.name in ("FT50.txt", "UTD24.txt"):
                 system = p.stem
                 jobs.append((5, p, system, "2026", 2026))
-        if len(jobs) != 8:
-            raise ValueError(f"Expected the 8 supplied source files; found {len(jobs)}")
+            elif p.name in {f"{index}.csv" for index in WOS_INDEXES}:
+                jobs.append((6, p, p.stem, "undated", None))
+        legacy_jobs = [job for job in jobs if job[2] not in WOS_INDEXES]
+        if len(legacy_jobs) != 8:
+            raise ValueError(f"Expected the 8 supplied legacy source files; found {len(legacy_jobs)}")
+        expected_wos = {path.name for path in paths.values() if path.name in {f"{index}.csv" for index in WOS_INDEXES}}
+        found_wos = {path.name for _, path, system, _, _ in jobs if system in WOS_INDEXES}
+        if found_wos != expected_wos:
+            raise ValueError(f"WOS source recognition mismatch: expected {sorted(expected_wos)}, found {sorted(found_wos)}")
         groups, by_id, by_title = {}, defaultdict(set), defaultdict(set)
         hashes = {}
         for _, path, system, edition, year in sorted(jobs, key=lambda x: (x[0], x[1].name)):
@@ -193,7 +210,10 @@ def build(root=ROOT, destination=DEFAULT_DB):
                     note = "Year is the supplied header label, not independently verified" if system == "JCR" else ""
                     if system == "CAS":
                         note = "Source gives one zone but no category or major/minor classification; retain as supplied"
-                    con.execute("INSERT INTO sources VALUES (?,?,?,?,?,?,?,?,?)", (sid, path.name, sha, system, row_edition, int(row_edition[:4]), 0, None, note))
+                    if system in WOS_INDEXES:
+                        note = "Undated local Web of Science index list; not a JCR metric edition"
+                    metric_year = int(row_edition[:4]) if system == "ABDC" else year
+                    con.execute("INSERT INTO sources VALUES (?,?,?,?,?,?,?,?,?)", (sid, path.name, sha, system, row_edition, metric_year, 0, None, note))
                 source_ids[sid] += 1
                 key = norm(row["title"])
                 ids = {issn(v) for v in row["ids_raw"]} - {None}
@@ -259,7 +279,8 @@ def build(root=ROOT, destination=DEFAULT_DB):
                     by_id[value].add(target)
                 con.execute("INSERT INTO observations(journal_id,source_id,source_sheet,source_row,title,match_method,metrics,raw,quality_flags) VALUES (?,?,?,?,?,?,?,?,?)",
                             (target, sid, row["sheet"], row["row"], row["title"], method, dumps(row["metrics"]), dumps(row["raw"]), dumps(flags)))
-                group["observations"].append((system, int(row_edition[:4]), row["metrics"]))
+                metric_year = int(row_edition[:4]) if system == "ABDC" else year
+                group["observations"].append((system, metric_year, row["metrics"]))
             for sid, count in source_ids.items():
                 con.execute("UPDATE sources SET row_count=? WHERE source_id=?", (count, sid))
         for jid, group in groups.items():
@@ -292,7 +313,10 @@ def summarize(jid, group):
         by_system[system].append((year, metrics))
     # Current means the latest supplied edition of that system, never a historical fallback.
     years = {"ABDC": 2025, "AJG": 2024, "CAS": 2025, "JCR": 2025, "SJR": 2025, "FT50": 2026, "UTD24": 2026}
-    current = {s: [m for y, m in values if y == years[s]] for s, values in by_system.items()}
+    current = {s: [m for y, m in values if s in years and y == years[s]] for s, values in by_system.items()}
+    # These local index lists have no edition year.  They are current only within
+    # this import and are intentionally not folded into JCR's yearly metrics.
+    wos_current = {s: [m for _, m in by_system.get(s, [])] for s in WOS_INDEXES}
     def unique(system, field):
         values = [m.get(field) for m in current.get(system, []) if m.get(field) is not None and m.get(field) != ""]
         distinct = {dumps(v) for v in values}
@@ -310,6 +334,9 @@ def summarize(jid, group):
                 subjects.update(m["areas"])
             elif s == "AJG" and m.get("field"):
                 subjects.add(m["field"])
+    for values in wos_current.values():
+        for metrics in values:
+            subjects.update(metrics.get("categories", []))
     quartiles = {c["quartile"] for m in current.get("JCR", []) for c in m["categories"] if c["quartile"] in ("Q1", "Q2", "Q3", "Q4")}
     result = {"journal_id": jid, "title": group["title"], "issns": dumps(sorted(group["ids"])),
               "abdc": unique("ABDC", "rating"), "abdc_year": 2025 if current.get("ABDC") else None,
@@ -320,7 +347,16 @@ def summarize(jid, group):
               "sjr_quartile": unique("SJR", "sjr_quartile"), "sjr_year": 2025 if current.get("SJR") else None,
               "ft50": bool(current.get("FT50")), "utd24": bool(current.get("UTD24")),
               "publisher": unique("AJG", "publisher") or unique("ABDC", "publisher") or unique("SJR", "publisher"),
-              "country": unique("SJR", "country"), "source_type": unique("SJR", "source_type"), "subjects": dumps(sorted(subjects))}
+              "country": unique("SJR", "country"), "source_type": unique("SJR", "source_type"),
+              "wos_indexes": dumps([system for system in WOS_INDEXES if wos_current[system]]),
+              "languages": dumps(sorted({language for values in wos_current.values() for metrics in values for language in metrics.get("languages", [])})),
+              "subjects": dumps(sorted(subjects))}
+    if not result["publisher"]:
+        wos_publishers = {metrics["publisher"] for values in wos_current.values() for metrics in values if metrics.get("publisher")}
+        if len(wos_publishers) == 1:
+            result["publisher"] = wos_publishers.pop()
+        elif len(wos_publishers) > 1:
+            group["flags"].add("conflicting_current_value:WOS:publisher")
     result["search_text"] = " ".join(sorted(group["aliases"]) + sorted(group["ids"]) + [v.replace("-", "") for v in sorted(group["ids"])] + sorted(subjects))
     result["quality_flags"] = dumps(sorted(group["flags"]))
     return result

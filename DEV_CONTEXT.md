@@ -2,7 +2,7 @@
 
 - 根目录：`E:/GitHub/期刊分区表`。
 - 产品：本地 SQLite 期刊评级库；中文检索网页与 AI CLI/API 共用查询层。
-- 原件：根目录 8 份 TXT/CSV/XLSX；JCR 两份内容相同，ABDC 一个工作簿含 6 个版本。原件不改。
+- 原件：根目录原8份 TXT/CSV/XLSX加SCIE.csv、SSCI.csv、AHCI.csv、ESCI.csv；JCR两份内容相同，ABDC一个工作簿含6个版本。原件不改。
 - 主库：`data/journals.sqlite`；概览导出：`data/journals.csv`、`data/journals.jsonl`。
 - 导入：`journaldb/build.py`，结构：`journaldb/schema.sql`，只读查询：`journaldb/query.py`。
 - Web：`web/index.html`，服务：`journaldb/server.py`。默认仅监听 `127.0.0.1:8765`。
@@ -18,5 +18,7 @@
 - 双语：`web/i18n.js` 提供 JournalI18n，先于 static-client.js 加载；首次默认英文，记住选择，原始来源不翻译。
 - UI逻辑：`web/app.js` 共用渲染与状态，语言切换只重绘缓存，不重置筛选/页码。静态构建为JS引用加内容哈希参数以避免缓存混用。
 - 筛选交互：下拉框/复选框立即生效，搜索/学科/数值输入防抖250ms；无Apply按钮，Clear重置条件。
+- WoS：四份CSV分别作为SCIE/SSCI/AHCI/ESCI未标年份快照；概览wos_indexes/languages为JSON数组，wos_index参数筛选。不得用JCR年份填充其版次。
+- CAS展示：网页及详情/选项用Q1–Q4，对应原始cas_zone 1–4；保留数值原件和API参数，不与JCR分区合并。
 - Pages：`.github/workflows/pages.yml`，main推送部署site/。根目录原始文件及data/由.gitignore排除，不上Git。
 - 维护边界：新增版次需同步来源识别与 current 年份配置；不得用历史评级填补新版本缺失。不默认生成诊断文件或运行日志。

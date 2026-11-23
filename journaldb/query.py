@@ -16,6 +16,7 @@ NOTES = [
     "空值表示本地文件未提供或当前值冲突。FT50/UTD24 的 false 仅表示未匹配到本地名单，不代表官方未收录。",
     "SCImago 原始数据包含 journal、book series、conference and proceedings、trade journal，均保留 source_type。",
     "ISSN 优先并校验校验位；刊名只做严格标准化匹配，两个已知且不相交的 ISSN 集合不因同名自动合并。",
+    "SCIE、SSCI、AHCI、ESCI 为无年份的本地 Web of Science 名录，独立于 JCR 指标版次；空数组仅表示未匹配本地名单。",
 ]
 
 
@@ -30,7 +31,7 @@ def connect(path=DEFAULT_DB):
 
 def decode(row):
     result = dict(row)
-    for key in ("issns", "subjects", "quality_flags"):
+    for key in ("issns", "wos_indexes", "languages", "subjects", "quality_flags"):
         if key in result:
             result[key] = json.loads(result[key])
     for key in ("ft50", "utd24", "cas_top"):
@@ -79,6 +80,13 @@ def filters(params):
             raise ValueError(f"{field} 必须为 {', '.join(choices)}")
         clauses.append("c." + ("cas_zone" if field == "cas" else field) + "=?")
         values.append(value)
+    wos_index = params.get("wos_index")
+    if wos_index not in (None, ""):
+        wos_index = str(wos_index)
+        if wos_index not in ("SCIE", "SSCI", "AHCI", "ESCI"):
+            raise ValueError("wos_index 必须为 SCIE、SSCI、AHCI 或 ESCI")
+        clauses.append("EXISTS(SELECT 1 FROM json_each(c.wos_indexes) WHERE value=?)")
+        values.append(wos_index)
     if params.get("subject"):
         clauses.append("EXISTS(SELECT 1 FROM json_each(c.subjects) WHERE value LIKE ? ESCAPE '\\')")
         values.append(like(str(params["subject"])))
@@ -156,6 +164,8 @@ def meta(con):
              "sources": con.execute("SELECT count(*) FROM sources WHERE duplicate_of IS NULL").fetchone()[0],
              "files": con.execute("SELECT count(DISTINCT filename) FROM sources").fetchone()[0],
              "ft50": con.execute("SELECT sum(ft50) FROM catalogue").fetchone()[0],
-             "utd24": con.execute("SELECT sum(utd24) FROM catalogue").fetchone()[0]}
+             "utd24": con.execute("SELECT sum(utd24) FROM catalogue").fetchone()[0],
+             "wos_index_counts": {index: con.execute("SELECT count(*) FROM catalogue WHERE EXISTS(SELECT 1 FROM json_each(wos_indexes) WHERE value=?)", (index,)).fetchone()[0]
+                                  for index in ("SCIE", "SSCI", "AHCI", "ESCI")}}
     return {"stats": stats, "sources": [dict(r) for r in con.execute("SELECT * FROM sources ORDER BY system,metric_year DESC")],
             "notes": NOTES, "built_at": con.execute("SELECT value FROM metadata WHERE key='built_at'").fetchone()[0]}
