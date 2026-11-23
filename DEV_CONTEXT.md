@@ -21,5 +21,6 @@
 - WoS：四份CSV分别作为SCIE/SSCI/AHCI/ESCI未标年份快照；概览wos_indexes/languages为JSON数组，wos_index参数筛选。不得用JCR年份填充其版次。
 - CAS展示：网页及详情/选项用Q1–Q4，对应原始cas_zone 1–4；保留数值原件和API参数，不与JCR分区合并。
 - 指标解释：web/metric-info.js提供双语官方定义与来源；web/help-popover.js和help.css处理500ms悬停、键盘与触屏，数据值由app.js的data-metric标注。CAS明确为显示映射。
+- 标志：web/brand/panda-throne.png为内置imagegen生成的透明熊猫冰晶王座图，冰蓝风纹背景；页眉56px/手机44px，并作favicon。静态构建同步至site/brand/。
 - Pages：`.github/workflows/pages.yml`，main推送部署site/。根目录原始文件及data/由.gitignore排除，不上Git。
 - 维护边界：新增版次需同步来源识别与 current 年份配置；不得用历史评级填补新版本缺失。不默认生成诊断文件或运行日志。

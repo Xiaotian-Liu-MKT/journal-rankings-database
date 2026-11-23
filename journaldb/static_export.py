@@ -62,14 +62,16 @@ def export_site(database=DEFAULT_DB, destination=None):
         if '<script src="static-client.js"></script>' not in html:
             html = html.replace("  <script>\n  (()=>", '  <script src="static-client.js"></script>\n  <script>\n  (()=>', 1)
         html = html.replace("LOCAL EDITION", "WEB EDITION")
-        web_assets = ("i18n.js", "static-client.js", "metric-info.js", "app.js", "help-popover.js", "help.css")
+        web_assets = ("i18n.js", "static-client.js", "metric-info.js", "app.js", "help-popover.js", "help.css", "brand/panda-throne.png")
         for filename in web_assets:
             version = hashlib.sha256((ROOT / "web" / filename).read_bytes()).hexdigest()[:12]
             html = html.replace(f'src="{filename}"', f'src="{filename}?v={version}"')
             html = html.replace(f'href="{filename}"', f'href="{filename}?v={version}"')
         (output / "index.html").write_text(html, encoding="utf-8")
         for filename in web_assets:
-            (output / filename).write_bytes((ROOT / "web" / filename).read_bytes())
+            asset_path = output / filename
+            asset_path.parent.mkdir(parents=True, exist_ok=True)
+            asset_path.write_bytes((ROOT / "web" / filename).read_bytes())
         (output / ".nojekyll").write_text("", encoding="utf-8")
         guide = """# 期刊索引室静态数据接口
 
