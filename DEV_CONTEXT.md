@@ -1,0 +1,18 @@
+# 期刊数据库项目
+
+- 根目录：`E:/GitHub/期刊分区表`。
+- 产品：本地 SQLite 期刊评级库；中文检索网页与 AI CLI/API 共用查询层。
+- 原件：根目录 8 份 TXT/CSV/XLSX；JCR 两份内容相同，ABDC 一个工作簿含 6 个版本。原件不改。
+- 主库：`data/journals.sqlite`；概览导出：`data/journals.csv`、`data/journals.jsonl`。
+- 导入：`journaldb/build.py`，结构：`journaldb/schema.sql`，只读查询：`journaldb/query.py`。
+- Web：`web/index.html`，服务：`journaldb/server.py`。默认仅监听 `127.0.0.1:8765`。
+- 入口：`python -m journaldb build`、`search`、`show`、`meta`、`serve --open`；真人可双击 `打开期刊查询.cmd`。
+- 依赖：Python 标准库即可查询；重建另需 `openpyxl`（见 requirements.txt）。
+- 验证：`python -m unittest discover -s tests -v`；网页验收脚本 `tests/browser_check.py` 需 Playwright，服务先启动。
+- 稳定决策：ISSN 校验、严格刊名匹配、保留歧义；不模糊强并；历史评级与当前版分开；冲突字段置空、保留全部观察值。
+- 版本边界：JCR 指标年按源表头标注 2025，未独立核验。中科院无学科/大类小类字段。SJR 包含非期刊类型。
+- 使用与字段说明：README.md、AI_QUERY.md。
+- 在线发布：`https://xiaotian-liu-mkt.github.io/journal-rankings-database/`；仓库 `Xiaotian-Liu-MKT/journal-rankings-database`，公开。
+- 静态构建：`python -m journaldb.static_export` → `site/`；浏览器适配器 `web/static-client.js`；manifest + gzip概览 + 256详情分片。
+- Pages：`.github/workflows/pages.yml`，main推送部署site/。根目录原始文件及data/由.gitignore排除，不上Git。
+- 维护边界：新增版次需同步来源识别与 current 年份配置；不得用历史评级填补新版本缺失。不默认生成诊断文件或运行日志。

@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+data/
+*.xlsx
+*.csv
+*.txt
+!requirements.txt
+codex-workbench.md
+.ai-worklog/
+*.building.sqlite
