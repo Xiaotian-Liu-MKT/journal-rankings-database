@@ -64,8 +64,8 @@ def serve(database=DEFAULT_DB, port=8765, open_browser=False):
             if parsed.path == "/help.css":
                 self.respond(200, (ROOT / "web" / "help.css").read_bytes(), "text/css; charset=utf-8")
                 return
-            if parsed.path == "/brand/panda-throne.png":
-                self.respond(200, (ROOT / "web" / "brand" / "panda-throne.png").read_bytes(), "image/png")
+            if parsed.path in ("/brand/panda-throne.png", "/brand/panda-emperor.png"):
+                self.respond(200, (ROOT / "web" / parsed.path.lstrip("/")).read_bytes(), "image/png")
                 return
             if parsed.path == "/favicon.ico":
                 self.respond(204, b"", "image/x-icon")

@@ -14,13 +14,13 @@
 - 使用与字段说明：README.md、AI_QUERY.md。
 - 在线发布：`https://xiaotian-liu-mkt.github.io/journal-rankings-database/`；仓库 `Xiaotian-Liu-MKT/journal-rankings-database`，公开。
 - 静态构建：`python -m journaldb.static_export` → `site/`；浏览器适配器 `web/static-client.js`；manifest + gzip概览 + 256详情分片。
-- 界面约定：白底、浅灰边线、深灰字、少量蓝色，搜索优先，指标分列；不恢复原纸张纹理/深色大型横幅。
+- 界面约定：查询与表格白底、浅灰边线、深灰字，搜索优先，指标分列；页眉用浅冰蓝渐变融合用户提供的熊猫冰霜场景，不使用深色大型横幅。
 - 双语：`web/i18n.js` 提供 JournalI18n，先于 static-client.js 加载；首次默认英文，记住选择，原始来源不翻译。
 - UI逻辑：`web/app.js` 共用渲染与状态，语言切换只重绘缓存，不重置筛选/页码。静态构建为JS引用加内容哈希参数以避免缓存混用。
 - 筛选交互：下拉框/复选框立即生效，搜索/学科/数值输入防抖250ms；无Apply按钮，Clear重置条件。
 - WoS：四份CSV分别作为SCIE/SSCI/AHCI/ESCI未标年份快照；概览wos_indexes/languages为JSON数组，wos_index参数筛选。不得用JCR年份填充其版次。
 - CAS展示：网页及详情/选项用Q1–Q4，对应原始cas_zone 1–4；保留数值原件和API参数，不与JCR分区合并。
 - 指标解释：web/metric-info.js提供双语官方定义与来源；web/help-popover.js和help.css处理500ms悬停、键盘与触屏，数据值由app.js的data-metric标注。CAS明确为显示映射。
-- 标志：web/brand/panda-throne.png为内置imagegen生成的透明熊猫冰晶王座图，冰蓝风纹背景；页眉56px/手机44px，并作favicon。静态构建同步至site/brand/。
+- 品牌：web/brand/panda-emperor.png为用户提供的冰霜王座熊猫帝王原图，原样复制，融入冰蓝页眉并作favicon；静态同步至site/brand/。先前imagegen透明徽标panda-throne.png保留。
 - Pages：`.github/workflows/pages.yml`，main推送部署site/。根目录原始文件及data/由.gitignore排除，不上Git。
 - 维护边界：新增版次需同步来源识别与 current 年份配置；不得用历史评级填补新版本缺失。不默认生成诊断文件或运行日志。

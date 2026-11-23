@@ -117,7 +117,9 @@ python -m unittest discover -s tests -v
 
 ## 网页标志
 
-`web/brand/panda-throne.png` 是透明熊猫王座徽标的源图，`site/brand/panda-throne.png` 为发布副本，用于页眉和 favicon。使用内置 image_gen 生成，保留原始透明通道。
+当前页眉与 favicon 使用用户提供的冰霜熊猫帝王场景图：`web/brand/panda-emperor.png`，发布副本为 `site/brand/panda-emperor.png`。原图原样复制，通过页面布局与渐变衔接融入浅冰蓝页眉。
+
+先前的透明徽标保留在 `web/brand/panda-throne.png`（发布副本同名），使用内置 image_gen 生成，保留原始透明通道。
 
 生成提示词（原文）：
 
