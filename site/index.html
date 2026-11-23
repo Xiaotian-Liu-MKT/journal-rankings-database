@@ -13,6 +13,7 @@
     .checkgrid label{display:inline-flex;align-items:center;gap:6px;line-height:1.2;white-space:nowrap}.checkgrid input[type="checkbox"]{width:14px;height:14px;flex:0 0 14px;margin:0;padding:0;vertical-align:middle}
     @media(min-width:1100px){.filter-content{grid-template-columns:repeat(6,minmax(0,1fr))}}table{min-width:1070px}
   </style>
+  <link rel="stylesheet" href="help.css?v=2c78fc4bd369">
 </head>
 <body>
   <header class="masthead"><div class="brand"><h1 data-i18n="title">Journal search</h1><select id="language" aria-label="Language"><option value="en">English</option><option value="zh">中文</option></select></div><p class="subline" data-i18n="description">Search journal rankings, indicators, and source records.</p></header>
@@ -42,9 +43,11 @@
     <footer><details><summary data-i18n="sources">Data and sources</summary><div id="notes">Loading…</div><p data-i18n="typeNote">Publication-type filtering applies only to records with an SJR type.</p><p data-i18n="casNote">CAS uses Q1–Q4 as display labels for source zones 1–4.</p><ul class="source-list" id="source-list"></ul></details></footer>
   </main>
   <dialog id="detail"><div class="drawer-head"><h2 id="detail-title">期刊详情</h2><button class="drawer-close" id="close-detail" aria-label="关闭详情">×</button></div><div class="drawer-body" id="detail-body"></div></dialog>
-  <script src="i18n.js?v=d3d829780e70"></script>
+  <script src="i18n.js?v=d2c2ae650e79"></script>
   <script src="static-client.js?v=330c7ab99da7"></script>
-  <script src="app.js?v=1a8777d8811d"></script>
+  <script src="metric-info.js?v=d9123072246c"></script>
+  <script src="app.js?v=0dd994315d1a"></script>
+  <script src="help-popover.js?v=6ba67cf0f67e"></script>
 
 </body>
 </html>

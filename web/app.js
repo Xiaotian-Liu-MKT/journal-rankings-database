@@ -25,6 +25,19 @@
     return values;
   };
   const badge = value => node('span', display(value), {class: value == null || value === '' ? 'na' : 'badge'});
+  const explain = (element, type, value, edition) => {
+    if (value == null || value === '' || value === '—') return element;
+    element.dataset.metric = type;
+    element.dataset.metricValue = String(value);
+    if (edition) element.dataset.metricEdition = edition;
+    element.tabIndex = 0;
+    element.setAttribute('role', 'button');
+    element.setAttribute('aria-haspopup', 'dialog');
+    element.setAttribute('aria-expanded', 'false');
+    const title = window.JournalMetricInfo?.get(type, value, edition)?.title || type;
+    element.setAttribute('aria-label', tr('Explain ', '说明：') + title + ' · ' + value);
+    return element;
+  };
   const cell = content => {
     const td = node('td');
     td.append(content instanceof Node ? content : document.createTextNode(display(content)));
@@ -60,18 +73,19 @@
       const title = cell(button);
       if (record.issns?.length) title.append(node('span', record.issns.join(' · '), {class: 'issn'}));
       const lists = node('div', undefined, {class: 'badges'});
-      if (record.ft50) lists.append(badge('FT50'));
-      if (record.utd24) lists.append(badge('UTD24'));
+      if (record.ft50) lists.append(explain(badge('FT50'), 'ft50', 'FT50'));
+      if (record.utd24) lists.append(explain(badge('UTD24'), 'utd24', 'UTD24'));
       if (!lists.childNodes.length) lists.append(node('span', '—', {class: 'na'}));
       const indexes = node('div', undefined, {class: 'badges'});
-      (record.wos_indexes || []).forEach(index => indexes.append(badge(index)));
+      (record.wos_indexes || []).forEach(index => indexes.append(explain(badge(index), index, index)));
       if (!indexes.childNodes.length) indexes.append(node('span', '—', {class: 'na'}));
       const subjects = record.subjects?.join(tr('; ', '；')) || '—';
       const zone = record.cas_zone == null ? '—' : `Q${record.cas_zone}` + (record.cas_top ? ' · Top' : '');
-      row.append(title, cell(badge(record.abdc)), cell(badge(record.ajg)), cell(lists), cell(indexes),
-        cell(node('span', display(record.impact_factor), {class: 'num'})), cell(badge(record.jcr_quartile)),
-        cell(node('span', display(record.sjr) + (record.sjr_quartile ? ' · ' + record.sjr_quartile : ''), {class: 'num'})),
-        cell(zone), cell(node('span', subjects, {class: 'subjects', title: subjects})));
+      const sjr = display(record.sjr) + (record.sjr_quartile ? ' · ' + record.sjr_quartile : '');
+      row.append(title, cell(explain(badge(record.abdc), 'abdc', record.abdc)), cell(explain(badge(record.ajg), 'ajg', record.ajg)), cell(lists), cell(indexes),
+        cell(explain(node('span', display(record.impact_factor), {class: 'num'}), 'jif', record.impact_factor)), cell(explain(badge(record.jcr_quartile), 'jcr', record.jcr_quartile)),
+        cell(explain(node('span', sjr, {class: 'num'}), 'sjr', sjr)),
+        cell(explain(node('span', zone), 'cas', record.cas_zone == null ? null : `Q${record.cas_zone}`)), cell(node('span', subjects, {class: 'subjects', title: subjects})));
       body.append(row);
     }
     if (!data.results.length) messageRow(tr('No records match these filters.', '没有符合条件的记录。'));
@@ -142,15 +156,16 @@
     const fields = [
       ['ISSN', journal.issns.join(' · ') || '—'],
       [tr('Publisher', '出版商'), journal.publisher], [tr('Country / region', '国家 / 地区'), journal.country],
-      ['ABDC 2025', journal.abdc], ['AJG 2024', journal.ajg], ['JIF', journal.impact_factor],
-      [tr('WoS indexes', 'WoS 索引'), journal.wos_indexes?.join(' · ') || null],
+      ['ABDC 2025', journal.abdc, 'abdc'], ['AJG 2024', journal.ajg, 'ajg'], ['JIF', journal.impact_factor, 'jif'],
+      [tr('WoS indexes', 'WoS 索引'), journal.wos_indexes?.join(' · ') || null, 'wos'],
       [tr('Languages', '出版语言'), journal.languages?.join(' · ') || null],
-      [tr('JCR best quartile', 'JCR 最佳分区'), journal.jcr_quartile], ['SJR', journal.sjr],
-      [tr('CAS', '中科院分区'), journal.cas_zone == null ? null : `Q${journal.cas_zone}`]
+      [tr('JCR best quartile', 'JCR 最佳分区'), journal.jcr_quartile, 'jcr'], ['SJR', journal.sjr, 'sjr'],
+      [tr('CAS', '中科院分区'), journal.cas_zone == null ? null : `Q${journal.cas_zone}`, 'cas']
     ];
-    for (const [label, value] of fields) {
+    for (const [label, value, metric] of fields) {
       const item = node('div');
-      item.append(node('b', label), node('span', display(value)));
+      const content = node('span', display(value));
+      item.append(node('b', label), metric ? explain(content, metric, value) : content);
       profile.append(item);
     }
     body.replaceChildren(profile);
@@ -166,10 +181,24 @@
       top.append(node('b', `${observation.system} · ${edition}`), node('small', location));
       item.append(top, node('div', tr('Source title: ', '原刊名：') + observation.title + tr(' · Matched by: ', ' · 匹配方式：') + observation.match_method));
       const chips = node('div', undefined, {class: 'metric-list'});
+      const metricChip = (key, value) => {
+        const shown = observation.system === 'CAS' && key === 'zone' ? `Q${value}` : metricValue(value);
+        const chip = node('span', `${metricName(key)}: ${shown}`);
+        let kind = null, helpValue = value;
+        if (key === 'rating' && observation.system === 'ABDC') kind = 'abdc';
+        if (key === 'rating' && observation.system === 'AJG') kind = 'ajg';
+        if (observation.system === 'JCR' && key === 'impact_factor') kind = 'jif';
+        if (observation.system === 'JCR' && key === 'categories' && value?.quartile) { kind = 'jcr'; helpValue = value.quartile; }
+        if (observation.system === 'SJR' && ['sjr', 'sjr_quartile'].includes(key)) kind = 'sjr';
+        if (observation.system === 'CAS' && key === 'zone') { kind = 'cas'; helpValue = shown; }
+        if (['SCIE', 'SSCI', 'AHCI', 'ESCI'].includes(observation.system) && key === 'index') kind = observation.system;
+        if (['FT50', 'UTD24'].includes(observation.system) && key === 'member') { kind = observation.system.toLowerCase(); helpValue = observation.system; }
+        return kind ? explain(chip, kind, helpValue, observation.edition) : chip;
+      };
       for (const [key, value] of Object.entries(observation.metrics)) {
         if (value == null || value === '') continue;
-        if (Array.isArray(value)) value.forEach(entry => chips.append(node('span', `${metricName(key)}: ${metricValue(entry)}`)));
-        else chips.append(node('span', `${metricName(key)}: ${observation.system === 'CAS' && key === 'zone' ? `Q${value}` : metricValue(value)}`));
+        if (Array.isArray(value)) value.forEach(entry => chips.append(metricChip(key, entry)));
+        else chips.append(metricChip(key, value));
       }
       item.append(chips);
       if (observation.quality_flags.length) item.append(node('p', tr('Data flags: ', '数据标记：') + observation.quality_flags.join('; '), {class: 'source-note'}));

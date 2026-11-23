@@ -1,0 +1,9 @@
+[data-metric]{text-decoration:underline dotted #98a2b3;text-underline-offset:3px;cursor:help;outline:none}
+[data-metric]:focus-visible{border-radius:3px;outline:2px solid #2563eb;outline-offset:3px}
+#metric-popover{position:fixed;z-index:2147483647;inset:auto;margin:0;width:max-content;max-width:340px;padding:14px 15px;background:#fff;border:1px solid #dbe2ea;border-radius:8px;box-shadow:0 10px 26px rgb(15 23 42 / 16%);color:#1f2937;font:13px/1.5 "Microsoft YaHei UI","PingFang SC",sans-serif}
+#metric-popover[popover]:not(:popover-open){display:none}
+#metric-popover[hidden]{display:none}
+.metric-popover__head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:5px}
+.metric-popover__title{font-size:14px;font-weight:650;color:#1d2939}.metric-popover__close{flex:0 0 auto;width:25px;height:25px;padding:0;border:1px solid #d0d5dd;border-radius:5px;background:#fff;color:#475467;font-size:17px;line-height:1;cursor:pointer}.metric-popover__close:hover{background:#f8fafc}.metric-popover__close:focus-visible{outline:2px solid #2563eb;outline-offset:2px}
+.metric-popover__description{margin:0;color:#344054}.metric-popover__detail{margin:7px 0 0;color:#667085}.metric-popover__source{display:inline-block;margin-top:10px;color:#2563eb;font-weight:600;text-decoration:none}.metric-popover__source:hover{text-decoration:underline}
+@media(max-width:480px){#metric-popover{max-width:calc(100vw - 24px)}}
