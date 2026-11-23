@@ -36,7 +36,7 @@ class StaticSnapshotTests(unittest.TestCase):
     def test_only_static_files_and_relative_adapter(self):
         root = ROOT / "site"
         html = (root / "index.html").read_text(encoding="utf-8")
-        self.assertLess(html.index("window.JOURNAL_STATIC=true"), html.index('src="static-client.js"'))
+        self.assertLess(html.index("window.JOURNAL_STATIC=true"), html.index('src="static-client.js'))
         self.assertTrue((root / "static-client.js").is_file())
         self.assertTrue((root / ".nojekyll").exists())
         self.assertFalse(list(root.rglob("*.sqlite")))

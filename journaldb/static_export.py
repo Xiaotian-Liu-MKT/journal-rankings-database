@@ -1,5 +1,6 @@
 """Build a self-contained GitHub Pages snapshot from the canonical SQLite DB."""
 import gzip
+import hashlib
 import json
 from collections import defaultdict
 from pathlib import Path
@@ -61,8 +62,13 @@ def export_site(database=DEFAULT_DB, destination=None):
         if '<script src="static-client.js"></script>' not in html:
             html = html.replace("  <script>\n  (()=>", '  <script src="static-client.js"></script>\n  <script>\n  (()=>', 1)
         html = html.replace("LOCAL EDITION", "WEB EDITION")
+        for filename in ("i18n.js", "static-client.js", "app.js"):
+            version = hashlib.sha256((ROOT / "web" / filename).read_bytes()).hexdigest()[:12]
+            html = html.replace(f'src="{filename}"', f'src="{filename}?v={version}"')
         (output / "index.html").write_text(html, encoding="utf-8")
         (output / "static-client.js").write_bytes((ROOT / "web" / "static-client.js").read_bytes())
+        (output / "i18n.js").write_bytes((ROOT / "web" / "i18n.js").read_bytes())
+        (output / "app.js").write_bytes((ROOT / "web" / "app.js").read_bytes())
         (output / ".nojekyll").write_text("", encoding="utf-8")
         guide = """# 期刊索引室静态数据接口
 

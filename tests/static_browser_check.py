@@ -16,6 +16,8 @@ def run(url):
         expect(page.locator("#rows .journal-btn")).to_have_count(50, timeout=60000)
         expect(page.locator("#statline")).to_contain_text("35,816")
         checks.append("static snapshot initial load")
+        page.locator("#language").select_option("zh")
+        expect(page.locator("html")).to_have_attribute("lang", "zh-CN")
 
         def api(params):
             return page.evaluate("""async params => {
@@ -24,12 +26,12 @@ def run(url):
             }""", params)
 
         page.locator("#q").fill("Journal of Consumer Research")
-        page.locator("#searchform").get_by_role("button", name="检索").click()
+        page.locator("#searchform button[type=submit]").click()
         expect(page.locator("#rows .journal-btn").first).to_have_text("JOURNAL OF CONSUMER RESEARCH")
         page.locator("#rows .journal-btn").first.click()
         expect(page.locator("#detail")).to_be_visible()
         expect(page.locator("#detail-body")).to_contain_text("2010 JQL", timeout=30000)
-        expect(page.locator("#detail-body")).to_contain_text("quartile: Q1")
+        expect(page.locator("#detail-body")).to_contain_text("Q1")
         expect(page.locator("#detail-body")).to_contain_text("查看原始字段")
         page.keyboard.press("Escape")
         checks.append("exact title, lazy detail, history and category quartiles")

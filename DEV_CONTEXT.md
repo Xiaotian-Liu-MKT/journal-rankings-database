@@ -14,5 +14,8 @@
 - 使用与字段说明：README.md、AI_QUERY.md。
 - 在线发布：`https://xiaotian-liu-mkt.github.io/journal-rankings-database/`；仓库 `Xiaotian-Liu-MKT/journal-rankings-database`，公开。
 - 静态构建：`python -m journaldb.static_export` → `site/`；浏览器适配器 `web/static-client.js`；manifest + gzip概览 + 256详情分片。
+- 界面约定：白底、浅灰边线、深灰字、少量蓝色，搜索优先，指标分列；不恢复原纸张纹理/深色大型横幅。
+- 双语：`web/i18n.js` 提供 JournalI18n，先于 static-client.js 加载；首次默认英文，记住选择，原始来源不翻译。
+- UI逻辑：`web/app.js` 共用渲染与状态，语言切换只重绘缓存，不重置筛选/页码。静态构建为JS引用加内容哈希参数以避免缓存混用。
 - Pages：`.github/workflows/pages.yml`，main推送部署site/。根目录原始文件及data/由.gitignore排除，不上Git。
 - 维护边界：新增版次需同步来源识别与 current 年份配置；不得用历史评级填补新版本缺失。不默认生成诊断文件或运行日志。
