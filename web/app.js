@@ -87,6 +87,7 @@
     controls(false);
   }
   async function load(reset = false) {
+    clearTimeout(state.debounce);
     if (reset) state.offset = 0;
     state.controller?.abort();
     state.controller = new AbortController();
@@ -215,7 +216,20 @@
   // Put the primary action before optional filters in both visual and keyboard order.
   $('.workbench').prepend($('#searchform'));
   $('#searchform').addEventListener('submit', event => { event.preventDefault(); load(true); });
-  $('#apply').addEventListener('click', () => load(true));
+  document.querySelectorAll('[data-param]:not(#sort)').forEach(control => {
+    if (control.matches('select,input[type="checkbox"]')) {
+      control.addEventListener('change', () => load(true));
+    } else {
+      control.addEventListener('input', event => {
+        clearTimeout(state.debounce);
+        if (!event.isComposing) state.debounce = setTimeout(() => load(true), 250);
+      });
+      control.addEventListener('compositionend', () => {
+        clearTimeout(state.debounce);
+        state.debounce = setTimeout(() => load(true), 250);
+      });
+    }
+  });
   $('#clear').addEventListener('click', () => {
     document.querySelectorAll('[data-param]').forEach(control => {
       if (control.type === 'checkbox') control.checked = false;

@@ -47,7 +47,6 @@ def run(url="http://127.0.0.1:8765", include_image=False):
         page.locator("#abdc").select_option("A*")
         page.locator("#ft50").check()
         page.locator("#utd24").check()
-        page.locator("#apply").click()
         expect(page.locator("#result-summary")).to_contain_text("共 23 条")
         export_url = url + page.locator("#export-link").get_attribute("href")
         with urlopen(export_url) as response:
@@ -69,7 +68,6 @@ def run(url="http://127.0.0.1:8765", include_image=False):
         page.locator("#clear").click()
         expect(page.locator("#rows .journal-btn")).to_have_count(50)
         page.locator("#source_type").select_option("book series")
-        page.locator("#apply").click()
         expect(page.locator("#rows .journal-btn")).to_have_count(50)
         with urlopen(url + "/api/journals?source_type=book%20series&limit=1") as response:
             assert json.load(response)["results"][0]["source_type"] == "book series"
@@ -110,7 +108,6 @@ def run(url="http://127.0.0.1:8765", include_image=False):
         page.locator("#clear").click()
         expect(page.locator("#rows .journal-btn")).to_have_count(50)
         page.locator("#ft50").check()
-        page.locator("#apply").click()
         expect(page.locator("#result-summary")).to_contain_text("共 50 条")
         assert not errors, errors
         result = {"checks": checks, "page_errors": errors}

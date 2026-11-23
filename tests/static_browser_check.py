@@ -66,7 +66,6 @@ def run(url):
         page.locator("#clear").click()
         expect(page.locator("#rows .journal-btn")).to_have_count(50)
         page.locator("#ft50").check()
-        page.locator("#apply").click()
         expect(page.locator("#result-summary")).to_contain_text("共 50 条")
         page.locator("#export-link").click()
         page.wait_for_function("window.exportedBlob")

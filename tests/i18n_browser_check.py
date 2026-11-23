@@ -28,12 +28,34 @@ def run(url):
         assert response["status"] == 400
         assert not re.search(r"[\u4e00-\u9fff]", response["body"]["error"])
         checks.append("English validation messages")
+        expect(page.locator("#apply")).to_have_count(0)
+        page.locator("#q").fill("00935301")
+        expect(page.locator("#rows .journal-btn")).to_have_count(1)
+        expect(page.locator("#rows .journal-btn").first).to_have_text("JOURNAL OF CONSUMER RESEARCH")
+        page.locator("#q").fill("")
+        expect(page.locator("#rows .journal-btn")).to_have_count(50)
+        page.locator("#min_if").fill("600")
+        expect(page.locator("#rows .journal-btn")).to_have_count(1)
+        expect(page.locator("#rows .journal-btn").first).to_have_text("CA-A CANCER JOURNAL FOR CLINICIANS")
+        page.locator("#clear").click()
+        expect(page.locator("#rows .journal-btn")).to_have_count(50)
+        checks.append("search and numeric filters update without Apply or Enter")
+
+        def aligned(target):
+            return target.evaluate("""() => ['ft50','utd24'].every(id => {
+              const input=document.getElementById(id),label=input.closest('label');
+              const text=[...label.childNodes].find(n=>n.nodeType===3 && n.textContent.trim());
+              const range=document.createRange();range.selectNode(text);
+              const a=input.getBoundingClientRect(),b=range.getBoundingClientRect();
+              return Math.abs((a.top+a.height/2)-(b.top+b.height/2))<2;
+            })""")
+        assert aligned(page)
+        checks.append("list checkboxes align with their labels")
 
         page.locator("#q").fill("Journal of Consumer Research")
         page.locator("#searchform button[type=submit]").click()
         expect(page.locator("#rows .journal-btn").first).to_have_text("JOURNAL OF CONSUMER RESEARCH")
         page.locator("#abdc").select_option("A*")
-        page.locator("#apply").click()
         expect(page.locator("#rows .journal-btn").first).to_have_text("JOURNAL OF CONSUMER RESEARCH")
         count = page.locator("#rows .journal-btn").count()
         page.locator("#language").select_option("zh")
@@ -81,6 +103,7 @@ def run(url):
         expect(mobile.locator("#filter-panel")).not_to_have_attribute("open", "")
         mobile.locator("#filter-panel > summary").click()
         expect(mobile.locator("#abdc")).to_be_visible()
+        assert aligned(mobile)
         mobile.locator("#language").select_option("zh")
         expect(mobile.locator("html")).to_have_attribute("lang", "zh-CN")
         assert mobile.evaluate("document.documentElement.scrollWidth <= innerWidth")
