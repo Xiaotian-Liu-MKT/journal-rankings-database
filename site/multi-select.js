@@ -11,7 +11,6 @@
     const options = realOptions(select);
     // A placeholder cannot be a meaningful multiselect choice.
     [...select.options].filter(option => !option.value).forEach(option => { option.selected = false; });
-    const selected = values(select);
     const byValue = new Map([...list.querySelectorAll('[data-value]')].map(row => [row.dataset.value, row]));
     for (const option of options) {
       let row = byValue.get(option.value);
@@ -39,8 +38,9 @@
     search.hidden = !many; if (many) search.placeholder = text('Search options', '搜索选项');
     search.setAttribute('aria-label', text('Search options', '搜索选项'));
     panel.setAttribute('aria-label', widget.label.textContent.trim());
-    clear.textContent = text('Clear', '清除'); clear.setAttribute('aria-label', text('Clear selection', '清除选择'));
-    const count = panel.querySelector('.multi-select-count'); count.textContent = selected.length ? text(`${selected.length} selected`, `已选 ${selected.length} 项`) : text('No restriction', '不限');
+    search.parentElement.hidden = !many;
+    clear.textContent = text('Clear selection', '清除选择');
+    clear.setAttribute('aria-label', clear.textContent);
     filter(widget);
     if (widget.open) place(widget);
   }
@@ -54,7 +54,7 @@
   }
   function place(widget) {
     const rect = widget.trigger.getBoundingClientRect(), panel = widget.panel;
-    panel.style.minWidth = `${Math.min(Math.max(rect.width, 220), window.innerWidth - 16)}px`;
+    panel.style.width = `${Math.min(rect.width, window.innerWidth - 16)}px`;
     const spaceBelow = Math.max(0, window.innerHeight - rect.bottom - 8);
     const spaceAbove = Math.max(0, rect.top - 8);
     panel.style.maxHeight = '390px';
@@ -76,7 +76,7 @@
     const trigger = document.createElement('button'); trigger.type = 'button'; trigger.id = `${select.id}-trigger`; trigger.className = 'multi-select-trigger'; trigger.dataset.multiTrigger = select.id; trigger.setAttribute('aria-haspopup', 'dialog'); trigger.setAttribute('aria-expanded', 'false');
     const value = document.createElement('span'); value.className = 'multi-select-value'; const chevron = document.createElement('span'); chevron.className = 'multi-select-chevron'; chevron.textContent = '⌄'; trigger.append(value, chevron); host.append(trigger);
     const panel = document.createElement('div'); panel.className = 'multi-select-popover'; panel.id = `${select.id}-options`; panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-label', labelElement.textContent.trim()); panel.hidden = true;
-    const tools = document.createElement('div'); tools.className = 'multi-select-tools'; const search = document.createElement('input'); search.className = 'multi-select-search'; search.type = 'search'; search.autocomplete = 'off'; search.setAttribute('aria-label', text('Search options', '搜索选项')); const clear = document.createElement('button'); clear.type = 'button'; clear.className = 'multi-select-clear'; tools.append(search, clear); const list = document.createElement('div'); list.className = 'multi-select-options'; const count = document.createElement('div'); count.className = 'multi-select-count'; panel.append(tools, list, count); host.append(panel);
+    const tools = document.createElement('div'); tools.className = 'multi-select-tools'; const search = document.createElement('input'); search.className = 'multi-select-search'; search.type = 'search'; search.autocomplete = 'off'; search.setAttribute('aria-label', text('Search options', '搜索选项')); const clear = document.createElement('button'); clear.type = 'button'; clear.className = 'multi-select-clear'; tools.append(search); const list = document.createElement('div'); list.className = 'multi-select-options'; panel.append(tools, list, clear); host.append(panel);
     trigger.setAttribute('aria-controls', panel.id); const widget = {select, label: labelElement, trigger, panel, list, search, clear, open: false}; widgets.set(select, widget); registry.add(widget);
     trigger.addEventListener('click', () => widget.open ? close(widget) : open(widget));
     trigger.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); close(widget); } });

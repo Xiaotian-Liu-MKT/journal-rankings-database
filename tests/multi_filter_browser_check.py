@@ -37,7 +37,13 @@ def run(url):
         def toggle(key, value, checked=True):
             before = page.evaluate("filterCalls")
             option = panel(key).locator(f'input[type="checkbox"][value="{value}"]')
-            option.set_checked(checked)
+            row = option.locator("..")
+            row.scroll_into_view_if_needed()
+            rect = row.bounding_box()
+            assert rect["height"] >= 44
+            # Click the empty right edge, away from both checkbox and text.
+            row.click(position={"x": rect["width"] - 5, "y": rect["height"] / 2})
+            expect(option).to_be_checked(checked=checked)
             page.wait_for_function("filterCalls === " + str(before + 1))
             expect(page.locator("#export-link")).to_have_attribute("aria-disabled", "false")
 
@@ -65,13 +71,23 @@ def run(url):
         toggle("abdc", "A*")
         toggle("abdc", "A")
         expect(page.locator("#abdc")).to_have_values(["A*", "A"])
+        popup = panel("abdc")
+        assert abs(popup.bounding_box()["width"] - page.locator("#abdc-trigger").bounding_box()["width"]) <= 1
+        expect(popup.locator(".multi-select-tools")).to_be_hidden()
+        expect(popup.locator(".multi-select-count")).to_have_count(0)
+        # Text and the checkbox itself must each toggle once as well.
+        popup.locator('.multi-select-option[data-value="B"] span').click()
+        expect(page.locator("#abdc")).to_have_values(["A*", "A", "B"])
+        popup.locator('input[value="B"]').click()
+        expect(page.locator("#abdc")).to_have_values(["A*", "A"])
+        expect(page.locator("#export-link")).to_have_attribute("aria-disabled", "false")
         close()
         expect(page.locator("#abdc-trigger")).to_be_focused()
         values = parse_qs(urlsplit(page.locator("#export-link").get_attribute("href")).query)
         assert values["abdc"] == ["A*", "A"]
         result = parity({"abdc": ["A*", "A"], "limit": 500})
         assert result["total"] == search(con, abdc="A*")["total"] + search(con, abdc="A")["total"]
-        checks.append("real checkbox union, repeated query values and one request per change")
+        checks.append("full-row/text/checkbox hit areas, compact panel, union and one request per change")
 
         toggle("jcr_quartile", "Q1")
         toggle("jcr_quartile", "Q2")
