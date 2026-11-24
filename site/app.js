@@ -15,7 +15,8 @@
     offset: 0, limit: 50, sort: 'title', order: 'asc', total: 0,
     request: 0, controller: null, status: 'loading', lastData: null,
     applied: {}, metadata: null, error: '', errorLocale: '',
-    detailId: null, detailData: null, detailRequest: 0, details: new Map()
+    detailId: null, detailData: null, detailRequest: 0, details: new Map(),
+    detailView: {tab: 'overview', groups: new Set(), observations: new Set(), raw: new Set(), paths: new Set(), legacy: false, method: false, aliases: false, scrollTop: 0}
   };
   const params = () => {
     const values = {limit: state.limit, offset: state.offset, sort: state.sort, order: state.order};
@@ -69,10 +70,7 @@
     primary.append(node('span', name, {class: 'taxonomy-name'}));
     if (paths.length > 1) primary.append(node('span', `+${paths.length - 1}`, {class: 'taxonomy-count'}));
     button.append(primary);
-    button.addEventListener('click', async () => {
-      await openDetail(record.journal_id);
-      if ($('#detail').open) $('#classification-evidence')?.scrollIntoView({block: 'start'});
-    });
+    button.addEventListener('click', () => openDetail(record.journal_id, 'classification'));
     return button;
   };
   function populateTaxonomyControls() {
@@ -195,46 +193,146 @@
     if (value && typeof value === 'object') return Object.entries(value).filter(([, item]) => item != null && item !== '').map(([key, item]) => `${metricName(key)}: ${metricValue(item)}`).join(tr('; ', '；'));
     return display(value);
   };
-  function renderDetail(data) {
+  const freshDetailView = tab => ({tab: tab || 'overview', groups: new Set(), observations: new Set(), raw: new Set(), paths: new Set(), legacy: false, method: false, aliases: false, scrollTop: 0});
+  const captureDetailView = () => {
+    const selected = document.querySelector('[data-detail-tab][aria-selected="true"]')?.dataset.detailTab;
+    return {
+      tab: selected || state.detailView.tab || 'overview',
+      groups: new Set([...document.querySelectorAll('.source-group[open]')].map(item => item.dataset.system)),
+      observations: new Set([...document.querySelectorAll('.observation[open]')].map(item => item.dataset.observationKey)),
+      raw: new Set([...document.querySelectorAll('.raw[open]')].map(item => item.dataset.observationKey)),
+      paths: new Set([...document.querySelectorAll('.taxonomy-path-card[open]')].map(item => item.dataset.pathKey)),
+      legacy: Boolean($('#legacy-subjects')?.open),
+      method: Boolean($('.taxonomy-method')?.open),
+      aliases: Boolean($('.source-aliases')?.open),
+      scrollTop: $('#detail-body').scrollTop
+    };
+  };
+  const updateDetailDisclosure = () => { if ($('#detail').open) state.detailView = captureDetailView(); };
+  function selectDetailTab(tab, focus = false, resetScroll = false) {
+    const selected = ['overview', 'classification', 'sources'].includes(tab) ? tab : 'overview';
+    state.detailView.tab = selected;
+    document.querySelectorAll('[data-detail-tab]').forEach(button => {
+      const active = button.dataset.detailTab === selected;
+      button.setAttribute('aria-selected', String(active));
+      button.tabIndex = active ? 0 : -1;
+      if (active && focus) button.focus();
+    });
+    document.querySelectorAll('#detail-body [role="tabpanel"]').forEach(panel => { panel.hidden = panel.id !== `detail-${selected}`; });
+    if (resetScroll) $('#detail-body').scrollTop = 0;
+  }
+  const detailKey = (observation, index) => [observation.system, observation.edition, observation.source_file, observation.source_sheet, observation.source_row, index].map(display).join('|');
+  const editionLabel = edition => edition === 'undated' ? tr('Undated snapshot', '未标年份快照') : display(edition);
+  function detailMetric(observation, key, value) {
+    const shown = observation.system === 'CAS' && key === 'zone' ? `Q${value}` : metricValue(value);
+    const metric = node('span', shown, {class: 'detail-metric-value'});
+    let kind = null, helpValue = value;
+    if (key === 'rating' && observation.system === 'ABDC') kind = 'abdc';
+    if (key === 'rating' && observation.system === 'AJG') kind = 'ajg';
+    if (observation.system === 'JCR' && key === 'impact_factor') kind = 'jif';
+    if (observation.system === 'JCR' && key === 'categories' && value?.quartile) { kind = 'jcr'; helpValue = value.quartile; }
+    if (observation.system === 'SJR' && ['sjr', 'sjr_quartile'].includes(key)) kind = 'sjr';
+    if (observation.system === 'CAS' && key === 'zone') { kind = 'cas'; helpValue = shown; }
+    if (['SCIE', 'SSCI', 'AHCI', 'ESCI'].includes(observation.system) && key === 'index') kind = observation.system;
+    if (['FT50', 'UTD24'].includes(observation.system) && key === 'member') { kind = observation.system.toLowerCase(); helpValue = observation.system; }
+    return kind ? explain(metric, kind, helpValue, observation.edition) : metric;
+  }
+  const profileCard = (label, value, metric, edition) => {
+    const card = node('div', undefined, {class: 'rating-card'});
+    const content = node('span', display(value), {class: 'rating-card__value'});
+    card.append(node('b', label), metric ? explain(content, metric, value, edition) : content);
+    return card;
+  };
+  const definition = (label, value) => [node('dt', label), node('dd', display(value))];
+  function renderDetail(data, preserveCurrentView = false) {
+    if (preserveCurrentView && $('#detail').open && $('#detail-body').childElementCount) state.detailView = captureDetailView();
     const journal = data.journal;
     $('#detail-title').textContent = journalTitle(journal.title);
     const body = $('#detail-body');
-    const profile = node('div', undefined, {class: 'profile'});
-    const fields = [
-      ['ISSN', journal.issns.join(' · ') || '—'],
-      [tr('Publisher', '出版商'), journal.publisher], [tr('Country / region', '国家 / 地区'), journal.country],
-      ['ABDC 2025', journal.abdc, 'abdc'], ['AJG 2024', journal.ajg, 'ajg'], ['JIF', journal.impact_factor, 'jif'],
-      [tr('WoS indexes', 'WoS 索引'), journal.wos_indexes?.join(' · ') || null, 'wos'],
-      [tr('Languages', '出版语言'), journal.languages?.join(' · ') || null],
-      [tr('JCR best quartile', 'JCR 最佳分区'), journal.jcr_quartile, 'jcr'], ['SJR', journal.sjr, 'sjr'],
-      [tr('CAS', '中科院分区'), journal.cas_zone == null ? null : `Q${journal.cas_zone}`, 'cas']
+    const shell = node('div', undefined, {class: 'detail-shell'});
+    const tabs = node('div', undefined, {class: 'detail-tabs', role: 'tablist', 'aria-label': tr('Journal detail sections', '期刊详情分区')});
+    const tabSpecs = [
+      ['overview', tr('Overview', '概览')], ['classification', tr('Classification', '分类')], ['sources', tr('Sources & history', '来源与历史')]
     ];
-    for (const [label, value, metric] of fields) {
-      const item = node('div');
-      const content = node('span', display(value));
-      item.append(node('b', label), metric ? explain(content, metric, value) : content);
-      profile.append(item);
+    for (const [name, label] of tabSpecs) {
+      const tab = node('button', label, {type: 'button', role: 'tab', 'data-detail-tab': name, 'aria-controls': `detail-${name}`, id: `detail-tab-${name}`});
+      tab.addEventListener('click', () => selectDetailTab(name, false, true));
+      tabs.append(tab);
     }
-    body.replaceChildren(profile);
+    tabs.addEventListener('keydown', event => {
+      const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+      if (!keys.includes(event.key)) return;
+      event.preventDefault();
+      const buttons = [...tabs.querySelectorAll('[data-detail-tab]')];
+      const current = Math.max(0, buttons.indexOf(document.activeElement));
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1
+        : (current + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length;
+      selectDetailTab(buttons[next].dataset.detailTab, true, true);
+    });
+    shell.append(tabs);
+    const overview = node('section', undefined, {class: 'detail-panel', id: 'detail-overview', role: 'tabpanel', 'aria-labelledby': 'detail-tab-overview'});
+    overview.append(node('p', tr('Current indicators at a glance. Editions are shown where supplied.', '当前指标一览；有版本信息时会一并标示。'), {class: 'detail-intro'}));
+    const profile = node('div', undefined, {class: 'profile'});
+    const sjrValue = journal.sjr == null ? null : `${journal.sjr}${journal.sjr_quartile ? ` · ${journal.sjr_quartile}` : ''}`;
+    profile.append(
+      profileCard('ABDC 2025', journal.abdc, 'abdc', '2025'), profileCard('AJG 2024', journal.ajg, 'ajg', '2024'),
+      profileCard('JIF', journal.impact_factor, 'jif'), profileCard(tr('JCR best quartile', 'JCR 最佳分区'), journal.jcr_quartile, 'jcr'),
+      profileCard('SJR', sjrValue, 'sjr'), profileCard('CAS', journal.cas_zone == null ? null : `Q${journal.cas_zone}${journal.cas_top ? ' · Top' : ''}`, 'cas')
+    );
+    overview.append(profile);
+    const coverage = node('section', undefined, {class: 'detail-coverage', 'aria-label': tr('Indexes and list coverage', '索引与名单收录')});
+    const coverageItem = (label, value, metric) => {
+      const item = node('div', undefined, {class: 'coverage-item'});
+      const content = node('span', display(value));
+      item.append(node('b', label), metric && value ? explain(content, metric, value) : content);
+      coverage.append(item);
+    };
+    coverageItem(tr('WoS indexes', 'WoS 索引'), journal.wos_indexes?.join(' · ') || null, 'wos');
+    coverageItem('FT50', journal.ft50 ? 'FT50' : null, 'ft50');
+    coverageItem('UTD24', journal.utd24 ? 'UTD24' : null, 'utd24');
+    overview.append(coverage);
+    const information = node('section', undefined, {class: 'detail-information'});
+    information.append(node('h3', tr('Journal information', '期刊信息')));
+    const infoList = node('dl');
+    infoList.append(...definition('ISSN', journal.issns?.join(' · ')), ...definition(tr('Publisher', '出版商'), journal.publisher),
+      ...definition(tr('Country / region', '国家 / 地区'), journal.country), ...definition(tr('Languages', '出版语言'), journal.languages?.join(' · ')));
+    information.append(infoList);
+    overview.append(information);
+    shell.append(overview);
+    const classificationPanel = node('section', undefined, {class: 'detail-panel', id: 'detail-classification', role: 'tabpanel', 'aria-labelledby': 'detail-tab-classification'});
     const classification = node('section', undefined, {class: 'taxonomy-evidence', id: 'classification-evidence'});
     classification.append(node('h3', tr('Unified classification', '统一分类')),
       node('p', tr('Unified from source classifications; finer compatible categories are retained.', '由来源分类归并；可兼容的细分类会保留。')));
     if (journal.taxonomy_paths?.length) {
-      const sources = new Map((taxonomy().sources || []).map(source => [source.name, source.url]));
-      for (const path of journal.taxonomy_paths) {
-        const item = node('p');
-        item.append(node('strong', taxonomyPathText(path)));
-        const evidence = (path.evidence || []).map(entry => {
+      journal.taxonomy_paths.forEach((path, index) => {
+        const pathKey = `${path.broad_id || ''}|${path.subcategory_id || ''}|${index}`;
+        const item = node('details', undefined, {class: 'taxonomy-path-card classification-proof', 'data-path-key': pathKey});
+        if (state.detailView.paths.has(pathKey)) item.open = true;
+        const evidenceCount = (path.evidence || []).length;
+        item.append(node('summary', `${taxonomyPathText(path)} · ${evidenceCount} ${evidenceCount === 1 ? tr('source record', '条来源依据') : tr('source records', '条来源依据')}`));
+        const table = node('table', undefined, {class: 'taxonomy-evidence-table'});
+        const head = node('thead');
+        const header = node('tr');
+        const evidenceLabels = [tr('System', '体系'), tr('Edition', '版本'), tr('Original label', '原始标签'), tr('Basis', '依据')];
+        evidenceLabels.forEach(label => header.append(node('th', label, {scope: 'col'})));
+        head.append(header); table.append(head);
+        const rows = node('tbody');
+        for (const entry of path.evidence || []) {
           const relation = entry.relation === 'broader' ? tr('broader category', '上级分类依据') : tr('direct category', '直接分类依据');
-          const source = sources.get(entry.system);
-          const text = `${entry.system} ${entry.edition || ''}: ${entry.value || entry.field || ''} (${relation})`.trim();
-          return source ? node('a', text, {href: source, target: '_blank', rel: 'noreferrer'}) : node('code', text);
-        });
-        if (evidence.length) item.append(document.createTextNode(' · '), ...evidence.flatMap((entry, index) => index ? [document.createTextNode(' · '), entry] : [entry]));
+          const row = node('tr');
+          [entry.system, entry.edition || '—', entry.value || entry.field || '—', relation].forEach((value, fieldIndex) => {
+            const evidenceCell = cell(value);
+            evidenceCell.dataset.label = evidenceLabels[fieldIndex];
+            row.append(evidenceCell);
+          });
+          rows.append(row);
+        }
+        table.append(rows); item.append(table);
         classification.append(item);
-      }
+      });
     } else classification.append(node('p', tr('No classification supplied by the local sources.', '本地来源未提供分类。')));
     const method = node('details', undefined, {class: 'taxonomy-method'});
+    method.open = state.detailView.method;
     method.append(node('summary', tr('Classification method and references', '归并方法与参考依据')),
       node('p', tr('Project-maintained crosswalk using ASJC as the backbone, with compatible finer source categories. Broader evidence does not imply a finer classification. This is not an official crosswalk between rating systems.', '本项目以 ASJC 为层级骨架，融合来源中相容的细分类。上级分类依据不代表来源也给出了细分类；这不是评级机构发布的官方跨体系对照表。')));
     const references = node('ul');
@@ -245,59 +343,90 @@
     });
     method.append(references);
     classification.append(method);
-    body.append(classification);
+    classificationPanel.append(classification);
     const legacy = [...new Map((journal.subjects || []).map(value => [String(value).toLocaleLowerCase(), value])).values()];
     if (legacy.length) {
       const auxiliary = node('details', undefined, {class: 'taxonomy-legacy', id: 'legacy-subjects'});
       auxiliary.append(node('summary', tr('Legacy mixed source labels', '旧版混合来源标签（辅助）')), node('p', legacy.join(tr('; ', '；'))));
-      body.append(auxiliary);
+      auxiliary.open = state.detailView.legacy;
+      classificationPanel.append(auxiliary);
     }
-    if (data.aliases.length) body.append(node('p', tr('Source titles: ', '来源刊名：') + data.aliases.join(tr('; ', '；')), {class: 'source-note'}));
+    shell.append(classificationPanel);
+    const sourcesPanel = node('section', undefined, {class: 'detail-panel', id: 'detail-sources', role: 'tabpanel', 'aria-labelledby': 'detail-tab-sources'});
+    sourcesPanel.append(node('p', tr('Every imported observation is retained below, grouped by source system.', '下方保留每条导入记录，并按来源体系归组。'), {class: 'detail-intro'}));
+    if (data.aliases.length) {
+      const aliases = node('details', undefined, {class: 'source-aliases'});
+      aliases.open = state.detailView.aliases;
+      aliases.append(node('summary', tr(`Source title variants (${data.aliases.length})`, `来源刊名变体（${data.aliases.length}）`)),
+        node('p', data.aliases.join(tr('; ', '；'))));
+      sourcesPanel.append(aliases);
+    }
     const history = node('section', undefined, {class: 'history'});
-    history.append(node('h3', tr('Sources and history', '来源与历史版本')));
-    for (const observation of data.observations) {
-      const item = node('article', undefined, {class: 'observation'});
-      const top = node('div', undefined, {class: 'obs-top'});
-      const location = [observation.source_file, observation.source_sheet,
-        tr(`Row ${observation.source_row}`, `第 ${observation.source_row} 行`)].filter(Boolean).join(' / ');
-      const edition = observation.edition === 'undated' ? tr('Undated snapshot', '未标年份快照') : observation.edition;
-      top.append(node('b', `${observation.system} · ${edition}`), node('small', location));
-      item.append(top, node('div', tr('Source title: ', '原刊名：') + observation.title + tr(' · Matched by: ', ' · 匹配方式：') + observation.match_method));
-      const chips = node('div', undefined, {class: 'metric-list'});
-      const metricChip = (key, value) => {
-        const shown = observation.system === 'CAS' && key === 'zone' ? `Q${value}` : metricValue(value);
-        const chip = node('span', `${metricName(key)}: ${shown}`);
-        let kind = null, helpValue = value;
-        if (key === 'rating' && observation.system === 'ABDC') kind = 'abdc';
-        if (key === 'rating' && observation.system === 'AJG') kind = 'ajg';
-        if (observation.system === 'JCR' && key === 'impact_factor') kind = 'jif';
-        if (observation.system === 'JCR' && key === 'categories' && value?.quartile) { kind = 'jcr'; helpValue = value.quartile; }
-        if (observation.system === 'SJR' && ['sjr', 'sjr_quartile'].includes(key)) kind = 'sjr';
-        if (observation.system === 'CAS' && key === 'zone') { kind = 'cas'; helpValue = shown; }
-        if (['SCIE', 'SSCI', 'AHCI', 'ESCI'].includes(observation.system) && key === 'index') kind = observation.system;
-        if (['FT50', 'UTD24'].includes(observation.system) && key === 'member') { kind = observation.system.toLowerCase(); helpValue = observation.system; }
-        return kind ? explain(chip, kind, helpValue, observation.edition) : chip;
-      };
-      for (const [key, value] of Object.entries(observation.metrics)) {
-        if (value == null || value === '') continue;
-        if (Array.isArray(value)) value.forEach(entry => chips.append(metricChip(key, entry)));
-        else chips.append(metricChip(key, value));
-      }
-      item.append(chips);
-      if (observation.quality_flags.length) item.append(node('p', tr('Data flags: ', '数据标记：') + observation.quality_flags.join('; '), {class: 'source-note'}));
-      const raw = node('details', undefined, {class: 'raw'});
+    const grouped = new Map();
+    data.observations.forEach((observation, index) => {
+      if (!grouped.has(observation.system)) grouped.set(observation.system, []);
+      grouped.get(observation.system).push({observation, index});
+    });
+    for (const [system, entries] of grouped) {
+      const latest = entries[0].observation;
+      const group = node('details', undefined, {class: 'source-group', 'data-system': system});
+      group.open = state.detailView.groups.has(system);
+      const recordCount = entries.length === 1 ? tr('record', '条记录') : tr('records', '条记录');
+      group.append(node('summary', `${system} · ${editionLabel(latest.edition)} · ${entries.length} ${recordCount}`));
+      const records = node('div', undefined, {class: 'source-group__records'});
+      for (const {observation, index} of entries) {
+        const observationKey = detailKey(observation, index);
+        const item = node('details', undefined, {class: 'observation', 'data-observation-key': observationKey,
+          'data-system': observation.system, 'data-edition': observation.edition || ''});
+        item.open = state.detailView.observations.has(observationKey);
+        const primaryMetric = Object.entries(observation.metrics || {}).find(([, value]) => value != null && value !== '');
+        item.append(node('summary', `${editionLabel(observation.edition)} · ${primaryMetric ? `${metricName(primaryMetric[0])}: ${metricValue(primaryMetric[1])}` : '—'}`));
+        const recordBody = node('div', undefined, {class: 'observation__body'});
+        const location = [observation.source_file, observation.source_sheet,
+          tr(`Row ${observation.source_row}`, `第 ${observation.source_row} 行`)].filter(Boolean).join(' / ');
+        const provenance = node('dl', undefined, {class: 'observation__provenance'});
+        provenance.append(...definition(tr('Source title', '原刊名'), observation.title), ...definition(tr('Matched by', '匹配方式'), observation.match_method), ...definition(tr('Location', '来源位置'), location));
+        recordBody.append(provenance);
+        const metrics = node('dl', undefined, {class: 'detail-metrics'});
+        for (const [key, value] of Object.entries(observation.metrics)) {
+          if (value == null || value === '') continue;
+          const appendMetric = entry => {
+            const definitionTerm = node('dt', metricName(key));
+            const definitionValue = node('dd');
+            definitionValue.append(detailMetric(observation, key, entry));
+            metrics.append(definitionTerm, definitionValue);
+          };
+          if (Array.isArray(value)) value.forEach(appendMetric);
+          else appendMetric(value);
+        }
+        recordBody.append(metrics);
+        if (observation.quality_flags.length) recordBody.append(node('p', tr('Data flags: ', '数据标记：') + observation.quality_flags.join('; '), {class: 'source-note'}));
+      const raw = node('details', undefined, {class: 'raw', 'data-observation-key': observationKey});
+      raw.open = state.detailView.raw.has(observationKey);
       raw.append(node('summary', tr('View original fields', '查看原始字段')), node('pre', JSON.stringify(observation.raw, null, 2)));
-      item.append(raw);
-      history.append(item);
+        recordBody.append(raw); item.append(recordBody); records.append(item);
+      }
+      group.append(records); history.append(group);
     }
-    body.append(history);
+    sourcesPanel.append(history); shell.append(sourcesPanel);
+    body.replaceChildren(shell);
+    selectDetailTab(state.detailView.tab);
+    if (preserveCurrentView) body.scrollTop = state.detailView.scrollTop;
+    body.querySelectorAll('details').forEach(item => item.addEventListener('toggle', updateDetailDisclosure));
   }
-  async function openDetail(id) {
+  async function openDetail(id, requestedTab) {
     const request = ++state.detailRequest;
+    const isNewJournal = state.detailId !== id;
     state.detailId = id;
+    if (isNewJournal) state.detailView = freshDetailView(requestedTab);
+    else if (requestedTab) state.detailView.tab = requestedTab;
     state.detailData = state.details.get(id) || null;
     if (!$('#detail').open) $('#detail').showModal();
-    if (state.detailData) { renderDetail(state.detailData); return; }
+    if (state.detailData) {
+      renderDetail(state.detailData);
+      if (requestedTab === 'classification') $('#classification-evidence')?.scrollIntoView({block: 'start'});
+      return;
+    }
     $('#detail-title').textContent = tr('Journal details', '期刊详情');
     $('#detail-body').replaceChildren(node('p', tr('Loading sources and history…', '正在加载来源与历史…'), {class: 'loading'}));
     try {
@@ -308,6 +437,7 @@
       state.details.set(id, data);
       state.detailData = data;
       renderDetail(data);
+      if (requestedTab === 'classification') $('#classification-evidence')?.scrollIntoView({block: 'start'});
     } catch (error) {
       if (request === state.detailRequest) $('#detail-body').replaceChildren(node('p', tr('Could not load details: ', '无法加载详情：') + error.message, {class: 'empty'}));
     }
@@ -384,7 +514,7 @@
     else messageRow(tr('Loading results…', '正在加载结果…'));
     renderMetadata();
     populateTaxonomyControls();
-    if ($('#detail').open && state.detailData) renderDetail(state.detailData);
+    if ($('#detail').open && state.detailData) renderDetail(state.detailData, true);
   });
   metadata();
   load();

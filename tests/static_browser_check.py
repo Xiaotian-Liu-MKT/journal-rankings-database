@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright, expect
+from detail_helpers import detail_tab, source_record
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -60,6 +61,7 @@ def run(url):
         expect(page.locator("#rows .journal-btn").first).to_have_text("Journal of Consumer Research")
         page.locator("#rows .journal-btn").first.click()
         expect(page.locator("#detail")).to_be_visible()
+        source_record(page, "ABDC")
         expect(page.locator("#detail-body")).to_contain_text("2010 JQL", timeout=30000)
         expect(page.locator("#detail-body")).to_contain_text("Q1")
         expect(page.locator("#detail-body")).to_contain_text("查看原始字段")

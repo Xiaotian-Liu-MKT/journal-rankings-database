@@ -7,7 +7,37 @@ from pathlib import Path
 from . import DEFAULT_DB
 from .build import norm
 from .acronyms import acronym_key, matches_acronym, search_text
-from .classifications import load_taxonomy, taxonomy_metadata
+from .classifications import load_taxonomy, taxonomy_definition, taxonomy_metadata
+
+
+SORT_FIELDS = ("title", "abdc", "ajg", "wos_indexes", "lists", "impact_factor",
+               "jcr_quartile", "sjr", "cas_zone", "subcategory")
+
+
+def _json_list(value):
+    """Return a JSON list from a catalogue value, or an empty list when absent."""
+    try:
+        value = json.loads(value) if isinstance(value, str) else value
+    except (TypeError, json.JSONDecodeError):
+        return []
+    return value if isinstance(value, list) else []
+
+
+def _wos_sort_key(value):
+    indexes = [str(index) for index in _json_list(value) if index]
+    return "\x1f".join(sorted(indexes, key=str.casefold)) or None
+
+
+def _subcategory_sort_key(value, labels):
+    """Canonical English leaf-label composite; root-only paths remain missing."""
+    leaves = []
+    for path in _json_list(value):
+        if not isinstance(path, dict):
+            continue
+        label = labels.get(path.get("subcategory_id"))
+        if label:
+            leaves.append(label)
+    return "\x1f".join(sorted(set(leaves), key=str.casefold)) or None
 
 
 NOTES = [
@@ -29,6 +59,13 @@ def connect(path=DEFAULT_DB):
     con = sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)
     con.row_factory = sqlite3.Row
     con.create_function("matches_acronym", 2, matches_acronym, deterministic=True)
+    # These UDFs only derive sort keys from the immutable catalogue JSON.  They
+    # are registered per read-only connection and never update source data.
+    labels = {node["id"]: node.get("label_en", "")
+              for node in taxonomy_definition().get("nodes", [])}
+    con.create_function("sort_wos_indexes", 1, _wos_sort_key, deterministic=True)
+    con.create_function("sort_subcategory", 1,
+                        lambda value: _subcategory_sort_key(value, labels), deterministic=True)
     return con
 
 
@@ -136,8 +173,8 @@ def filters(params):
 def selection(params):
     where, values = filters(params)
     sort = str(params.get("sort", "title"))
-    if sort not in ("title", "impact_factor", "sjr"):
-        raise ValueError("sort 必须为 title、impact_factor 或 sjr")
+    if sort not in SORT_FIELDS:
+        raise ValueError("sort 必须为 " + "、".join(SORT_FIELDS))
     order = str(params.get("order", "asc")).lower()
     if order not in ("asc", "desc"):
         raise ValueError("order 必须为 asc 或 desc")
@@ -151,7 +188,23 @@ def selection(params):
         if acronym:
             priority += "NOT EXISTS(SELECT 1 FROM aliases a WHERE a.journal_id=c.journal_id AND matches_acronym(a.title, ?)),"
             values.append(acronym)
-    order_sql = f" ORDER BY {priority}c.{sort} IS NULL,c.{sort} COLLATE NOCASE {order},c.journal_id"
+    expressions = {
+        "title": "c.title COLLATE NOCASE",
+        "abdc": "CASE c.abdc WHEN 'A*' THEN 1 WHEN 'A' THEN 2 WHEN 'B' THEN 3 WHEN 'C' THEN 4 END",
+        "ajg": "CASE c.ajg WHEN '4*' THEN 1 WHEN '4' THEN 2 WHEN '3' THEN 3 WHEN '2' THEN 4 WHEN '1' THEN 5 END",
+        "wos_indexes": "sort_wos_indexes(c.wos_indexes) COLLATE NOCASE",
+        "lists": "(c.ft50 + c.utd24)",
+        "impact_factor": "c.impact_factor",
+        "jcr_quartile": "CASE c.jcr_quartile WHEN 'Q1' THEN 1 WHEN 'Q2' THEN 2 WHEN 'Q3' THEN 3 WHEN 'Q4' THEN 4 END",
+        "sjr": "c.sjr",
+        "cas_zone": "CASE c.cas_zone WHEN 1 THEN 1 WHEN 2 THEN 2 WHEN 3 THEN 3 WHEN 4 THEN 4 END",
+        "subcategory": "sort_subcategory(c.taxonomy_paths) COLLATE NOCASE",
+    }
+    expression = expressions[sort]
+    # Missing values are always after real values; the stable title/id suffix
+    # keeps offset pagination deterministic even when a sort key is shared.
+    suffix = "c.journal_id" if sort == "title" else "c.title COLLATE NOCASE ASC,c.journal_id"
+    order_sql = f" ORDER BY {priority}({expression}) IS NULL,{expression} {order},{suffix}"
     return where, values, order_sql
 
 

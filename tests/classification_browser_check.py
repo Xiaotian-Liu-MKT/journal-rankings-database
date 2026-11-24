@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
+from detail_helpers import detail_tab, source_record
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from journaldb.query import connect, search
@@ -102,9 +103,11 @@ def run(url):
         expect(page.locator("#subcategory")).to_have_value("asjc-1406")
         assert page.evaluate("taxQueries") == requests
         page.locator("#rows .journal-btn").click()
+        detail_tab(page, "classification")
+        page.locator(".classification-proof > summary").first.click()
         expect(page.locator("#classification-evidence")).to_contain_text("MKT", timeout=30000)
         expect(page.locator("#classification-evidence")).to_contain_text("上级")
-        expect(page.locator("#classification-evidence details a")).to_have_count(4)
+        expect(page.locator("#classification-evidence .taxonomy-method a")).to_have_count(4)
         expect(page.locator("#legacy-subjects")).not_to_have_attribute("open", "")
         page.keyboard.press("Escape")
         checks.append("locale preserves state without query; direct/broader evidence and auxiliary raw labels")
@@ -139,6 +142,7 @@ def run(url):
         expect(page.locator("#rows .journal-btn")).to_have_text("Nature")
         expect(page.locator("#rows tr td:last-child")).to_have_text("—")
         page.locator("#rows .journal-btn").click()
+        detail_tab(page, "classification")
         expect(page.locator("#classification-evidence")).to_contain_text(re.compile("Multidisciplinary|综合学科"), timeout=30000)
         page.keyboard.press("Escape")
         page.locator("#clear").click()

@@ -23,7 +23,7 @@
     document.addEventListener('focusout',e=>{const el=targetOf(e.target);if(el&&!popover?.contains(e.relatedTarget))scheduleClose()});
     document.addEventListener('keydown',e=>{const el=targetOf(e.target);if(el&&(e.key==='Enter'||e.key===' ')){e.preventDefault();show(el,true)}if(el&&e.key==='ArrowDown'){show(el,true);const next=popover?.querySelector('.metric-popover__source,.metric-popover__close');if(next){e.preventDefault();next.focus()}}if(e.key==='Escape'&&opened()){e.preventDefault();closeNow()}});
     addEventListener('resize',place);addEventListener('scroll',place,true);
-    new MutationObserver(()=>{if(anchor&&!anchor.isConnected)closeNow()}).observe(document.body,{childList:true,subtree:true});
+    new MutationObserver(()=>{if(anchor&&(!anchor.isConnected||!anchor.getClientRects().length))closeNow()}).observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['hidden','open']});
     addEventListener('journal-locale-change',()=>{if(!anchor)return;if(!anchor.isConnected){closeNow();return}show(anchor,true)})
   });
 })();

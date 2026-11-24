@@ -3,6 +3,7 @@ import argparse
 import json
 
 from playwright.sync_api import sync_playwright, expect
+from detail_helpers import detail_tab, source_record
 
 
 def run(url):
@@ -97,7 +98,7 @@ def run(url):
         checks.append("Chinese content and interactive popup inside journal details")
 
         page.locator("#rows .journal-btn").click()
-        old_rating = page.locator("#detail-body .observation").filter(has_text="ABDC · 2010").locator('[data-metric="abdc"]').first
+        old_rating = source_record(page, "ABDC", "2010").locator('[data-metric="abdc"]').first
         old_rating.hover()
         expect(popup).to_be_visible()
         expect(popup.locator(".metric-popover__title")).to_have_text("ABDC · 2010")

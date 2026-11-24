@@ -11,6 +11,8 @@
 
 `search` 不支持自然语言条件解析。AI 应把“ABDC A* 且 UTD24”转换成 `--abdc 'A*' --utd24 1`；把“影响因子至少5”转换成 `--min-if 5`。未知评级、空值和名单 false 不等同于零。
 
+排序支持 `title`、`abdc`、`ajg`、`wos_indexes`、`lists`、`impact_factor`、`jcr_quartile`、`sjr`、`cas_zone`、`subcategory`，方向为 `asc`/`desc`，两个方向均将缺失放最后。ABDC/AJG/JCR/CAS 按等级排序（asc 最好在前）；名单按本地 FT50/UTD24 命中数量排序，0 为有效值；WoS 按索引名称组合、细分类按全部英文细分类名称组合排序。细分类不由大类回填。分页与 CSV 导出使用同一排序条件。
+
 ## 统一学科分类
 
 网页使用一套统一的两层分类，CLI/API 对应 `--broad-area` / `broad_area` 和 `--subcategory` / `subcategory`。例如 `python -m journaldb search --broad-area area-1400 --subcategory asjc-1406` 查询市场营销。节点 ID 与双语标签见 `meta.taxonomy.nodes`；大类查询包含该大类直接归属和全部细分类，细分类查询只命中有明确细分类依据的条目。父子参数必须来自同一分支。

@@ -8,7 +8,7 @@ from journaldb import ROOT, DEFAULT_DB
 from journaldb.build import issn, norm
 from journaldb.query import connect, detail, filters, meta, search
 from journaldb.acronyms import acronym_key, title_acronyms
-from journaldb.classifications import current_taxonomy_paths, load_taxonomy
+from journaldb.classifications import current_taxonomy_paths, load_taxonomy, taxonomy_definition
 
 
 class DatabaseTests(unittest.TestCase):
@@ -207,8 +207,51 @@ class DatabaseTests(unittest.TestCase):
         self.assertTrue(all(r["impact_factor"] >= 5 and r["source_type"] == "journal" for r in page1["results"]))
         self.assertGreater(search(self.con, source_type="book series")["total"], 0)
 
+    def test_all_sort_fields_rank_values_and_keep_missing_last(self):
+        """Every public sort has an explicit value contract in both directions."""
+        ranks = {
+            "abdc": {"A*": 1, "A": 2, "B": 3, "C": 4},
+            "ajg": {"4*": 1, "4": 2, "3": 3, "2": 4, "1": 5},
+            "jcr_quartile": {"Q1": 1, "Q2": 2, "Q3": 3, "Q4": 4},
+            "cas_zone": {1: 1, 2: 2, 3: 3, 4: 4},
+        }
+        labels = {node["id"]: node.get("label_en", "") for node in taxonomy_definition()["nodes"]}
+
+        def value(row, field):
+            if field in ranks:
+                return ranks[field].get(row[field])
+            if field == "lists":
+                return int(row["ft50"]) + int(row["utd24"])
+            if field == "wos_indexes":
+                return "\x1f".join(sorted(row[field], key=str.casefold)) or None
+            if field == "subcategory":
+                leaves = {labels.get(path.get("subcategory_id"), "") for path in row["taxonomy_paths"]}
+                return "\x1f".join(sorted(leaves - {""}, key=str.casefold)) or None
+            if field == "title":
+                return row[field].casefold()
+            return row[field]
+
+        fields = ("title", "abdc", "ajg", "wos_indexes", "lists", "impact_factor",
+                  "jcr_quartile", "sjr", "cas_zone", "subcategory")
+        # This bounded query contains real values and nulls for all nullable
+        # fields, allowing the whole result set to be checked rather than just a page.
+        for field in fields:
+            for order in ("asc", "desc"):
+                rows = search(self.con, q="academy", sort=field, order=order, limit=500)["results"]
+                keys = [value(row, field) for row in rows]
+                first_missing = next((index for index, key in enumerate(keys) if key is None), len(keys))
+                self.assertTrue(all(key is not None for key in keys[:first_missing]), (field, order))
+                self.assertTrue(all(key is None for key in keys[first_missing:]), (field, order))
+                present = keys[:first_missing]
+                expected = sorted(present, reverse=order == "desc")
+                self.assertEqual(present, expected, (field, order))
+
+        page1 = search(self.con, q="academy", sort="abdc", limit=10, offset=0)["results"]
+        page2 = search(self.con, q="academy", sort="abdc", limit=10, offset=10)["results"]
+        self.assertFalse({row["journal_id"] for row in page1} & {row["journal_id"] for row in page2})
+
     def test_query_validation_and_literal_safety(self):
-        for params in ({"sort": "title; DROP TABLE journals"}, {"limit": 0}, {"offset": -1}, {"min_if": "NaN"}, {"abdc": "D"}, {"wos_index": "JCR"}):
+        for params in ({"sort": "title; DROP TABLE journals"}, {"sort": "unknown"}, {"order": "sideways"}, {"limit": 0}, {"offset": -1}, {"min_if": "NaN"}, {"abdc": "D"}, {"wos_index": "JCR"}):
             with self.assertRaises(ValueError):
                 search(self.con, **params)
         search(self.con, q="' OR 1=1 --")

@@ -78,22 +78,50 @@
     if (!Number.isFinite(number) || number < 0) throw new Error(msg(`${name} must be a finite number greater than or equal to 0.`, `${name} 必须是大于或等于 0 的数字。`));
     return number;
   };
-  function compare(a, b, key, order, exactTitle, acronym) {
+  const sortFields = ['title', 'abdc', 'ajg', 'wos_indexes', 'lists', 'impact_factor', 'jcr_quartile', 'sjr', 'cas_zone', 'subcategory'];
+  const sortRanks = {
+    abdc: { 'A*': 1, A: 2, B: 3, C: 4 },
+    ajg: { '4*': 1, '4': 2, '3': 3, '2': 4, '1': 5 },
+    jcr_quartile: { Q1: 1, Q2: 2, Q3: 3, Q4: 4 },
+    cas_zone: { '1': 1, '2': 2, '3': 3, '4': 4 }
+  };
+  // SQLite NOCASE is a simple case-insensitive byte/codepoint ordering for
+  // these English source labels; avoid locale punctuation tailoring here.
+  const compositeCompare = (a, b) => {
+    const aa = String(a).toLowerCase(), bb = String(b).toLowerCase();
+    return aa < bb ? -1 : aa > bb ? 1 : 0;
+  };
+  function sortValue(record, key, nodes) {
+    if (key === 'title') return record.title ? normalize(record.title) : null;
+    if (key === 'lists') return Number(Boolean(record.ft50)) + Number(Boolean(record.utd24));
+    if (key === 'wos_indexes') {
+      const indexes = (record.wos_indexes || []).filter(Boolean).map(String).sort(compositeCompare);
+      return indexes.length ? indexes.join('\u001f') : null;
+    }
+    if (key === 'subcategory') {
+      const labels = [...new Set((record.taxonomy_paths || []).map(path => nodes.get(path.subcategory_id)?.label_en).filter(Boolean))]
+        .sort(compositeCompare);
+      return labels.length ? labels.join('\u001f') : null;
+    }
+    if (sortRanks[key]) return sortRanks[key][String(record[key])] ?? null;
+    const value = record[key];
+    return value === null || value === undefined || value === '' ? null : Number(value);
+  }
+  function compare(a, b, key, order, exactTitle, acronym, nodes) {
     if (key === 'title' && exactTitle) {
       const exactA = normalize(a.title) === exactTitle || (a.normalized_aliases || []).includes(exactTitle), exactB = normalize(b.title) === exactTitle || (b.normalized_aliases || []).includes(exactTitle);
       if (exactA !== exactB) return exactA ? -1 : 1;
       const acronymA = !!acronym && (a.search_acronyms || []).includes(acronym), acronymB = !!acronym && (b.search_acronyms || []).includes(acronym);
       if (acronymA !== acronymB) return acronymA ? -1 : 1;
     }
-    const av = a[key], bv = b[key]; const missingA = av === null || av === undefined || av === '';
+    const av = sortValue(a, key, nodes), bv = sortValue(b, key, nodes);
+    const missingA = av === null || av === undefined || av === '';
     const missingB = bv === null || bv === undefined || bv === '';
     if (missingA || missingB) return missingA === missingB ? 0 : (missingA ? 1 : -1);
     let result;
-    if (key === 'title') {
-      const aa = normalize(a.title);
-      const bb = normalize(b.title);
-      result = aa.localeCompare(bb, 'en');
-    } else result = Number(av) - Number(bv);
+    if (key === 'title') result = String(av).localeCompare(String(bv), 'en');
+    else if (key === 'wos_indexes' || key === 'subcategory') result = compositeCompare(av, bv);
+    else result = Number(av) - Number(bv);
     return order === 'desc' ? -result : result;
   }
   function booleanParameter(search, name) {
@@ -110,7 +138,7 @@
     const q = queryTokens(query);
     const exact = [['abdc', 'abdc', new Set(['A*', 'A', 'B', 'C'])], ['ajg', 'ajg', new Set(['4*', '4', '3', '2', '1'])], ['cas', 'cas_zone', new Set(['1', '2', '3', '4'])], ['jcr_quartile', 'jcr_quartile', new Set(['Q1', 'Q2', 'Q3', 'Q4'])], ['sjr_quartile', 'sjr_quartile', new Set(['Q1', 'Q2', 'Q3', 'Q4'])], ['source_type', 'source_type', new Set(['journal', 'book series', 'conference and proceedings', 'trade journal'])]];
     const minIF = nullableNumber(search.get('min_if'), msg('Minimum JIF', '最低 JIF'));
-    const sort = search.get('sort') || 'title'; const order = search.get('order') || 'asc';
+    const sort = search.get('sort') || 'title'; const order = String(search.get('order') || 'asc').toLowerCase();
     const ft50 = booleanParameter(search, 'ft50'), utd24 = booleanParameter(search, 'utd24');
     const wosIndex = search.get('wos_index');
     const broad = search.get('broad_area'), subcategory = search.get('subcategory');
@@ -119,7 +147,7 @@
     if (subcategory && (!nodes.has(subcategory) || !nodes.get(subcategory).parent_id)) throw new Error(msg('Invalid subcategory.', '细分类参数无效。'));
     if (broad && subcategory && nodes.get(subcategory).parent_id !== broad) throw new Error(msg('Subcategory does not belong to this broad area.', '细分类不属于所选大类。'));
     if (wosIndex && !['SCIE', 'SSCI', 'AHCI', 'ESCI'].includes(wosIndex)) throw new Error(msg('Invalid WoS index.', 'WoS 索引参数无效。'));
-    if (!['title', 'impact_factor', 'sjr'].includes(sort)) throw new Error(msg('Unsupported sort field.', '不支持的排序字段。'));
+    if (!sortFields.includes(sort)) throw new Error(msg('Unsupported sort field.', '不支持的排序字段。'));
     if (!['asc', 'desc'].includes(order)) throw new Error(msg('Sort order must be asc or desc.', '排序方向必须为 asc 或 desc。'));
     exact.forEach(([parameter, , allowed]) => { if (search.get(parameter) && !allowed.has(search.get(parameter))) throw new Error(msg(`Invalid ${parameter} parameter.`, `${parameter} 参数无效。`)); });
     const exactTitle = normalize(query);
@@ -135,7 +163,9 @@
       if (search.get('subject') && !normalize(record.subjects?.join(' ')).includes(normalize(search.get('subject')))) return false;
       return minIF === null || (record.impact_factor !== null && record.impact_factor !== undefined && Number(record.impact_factor) >= minIF);
     });
-    matched = matched.slice().sort((a, b) => compare(a, b, sort, order, exactTitle, acronym) || normalize(a.title).localeCompare(normalize(b.title), 'en'));
+    matched = matched.slice().sort((a, b) => compare(a, b, sort, order, exactTitle, acronym, nodes)
+      || (sort === 'title' ? 0 : normalize(a.title).localeCompare(normalize(b.title), 'en'))
+      || String(a.journal_id).localeCompare(String(b.journal_id), 'en'));
     return matched;
   }
   async function api(url, signal) {

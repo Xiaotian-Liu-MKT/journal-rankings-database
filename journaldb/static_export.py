@@ -67,7 +67,7 @@ def export_site(database=DEFAULT_DB, destination=None):
         if '<script src="static-client.js"></script>' not in html:
             html = html.replace("  <script>\n  (()=>", '  <script src="static-client.js"></script>\n  <script>\n  (()=>', 1)
         html = html.replace("LOCAL EDITION", "WEB EDITION")
-        web_assets = ("i18n.js", "static-client.js", "metric-info.js", "journal-title.js", "app.js", "help-popover.js", "help.css", "brand/panda-throne.png", "brand/panda-emperor.png")
+        web_assets = ("i18n.js", "static-client.js", "metric-info.js", "journal-title.js", "app.js", "help-popover.js", "help.css", "detail.css", "brand/panda-throne.png", "brand/panda-emperor.png")
         for filename in web_assets:
             version = hashlib.sha256((ROOT / "web" / filename).read_bytes()).hexdigest()[:12]
             html = html.replace(f'src="{filename}"', f'src="{filename}?v={version}"')

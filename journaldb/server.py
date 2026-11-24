@@ -61,8 +61,8 @@ def serve(database=DEFAULT_DB, port=8765, open_browser=False):
             if parsed.path in ("/static-client.js", "/i18n.js", "/app.js", "/journal-title.js", "/metric-info.js", "/help-popover.js"):
                 self.respond(200, (ROOT / "web" / parsed.path[1:]).read_bytes(), "application/javascript; charset=utf-8")
                 return
-            if parsed.path == "/help.css":
-                self.respond(200, (ROOT / "web" / "help.css").read_bytes(), "text/css; charset=utf-8")
+            if parsed.path in ("/help.css", "/detail.css"):
+                self.respond(200, (ROOT / "web" / parsed.path[1:]).read_bytes(), "text/css; charset=utf-8")
                 return
             if parsed.path in ("/brand/panda-throne.png", "/brand/panda-emperor.png"):
                 self.respond(200, (ROOT / "web" / parsed.path.lstrip("/")).read_bytes(), "image/png")

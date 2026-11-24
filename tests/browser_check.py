@@ -8,6 +8,7 @@ from urllib.request import urlopen
 from urllib.error import HTTPError
 
 from playwright.sync_api import sync_playwright, expect
+from detail_helpers import detail_tab, source_record
 
 
 def run(url="http://127.0.0.1:8765", include_image=False):
@@ -35,6 +36,7 @@ def run(url="http://127.0.0.1:8765", include_image=False):
         page.locator("#rows .journal-btn").first.click()
         expect(page.locator("#detail")).to_be_visible()
         expect(page.locator("#detail-title")).to_have_text("Journal of Consumer Research")
+        source_record(page, "ABDC")
         expect(page.locator("#detail-body")).to_contain_text("2025 JQL")
         expect(page.locator("#detail-body")).to_contain_text("2010 JQL")
         expect(page.locator("#detail-body")).to_contain_text("Q1")

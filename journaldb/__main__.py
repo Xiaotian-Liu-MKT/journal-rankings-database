@@ -15,7 +15,7 @@ def main():
     query.add_argument("q", nargs="?", default="")
     for name in ("abdc", "ajg", "cas", "jcr-quartile", "sjr-quartile", "subject", "broad-area", "subcategory", "source-type", "wos-index", "min-if", "ft50", "utd24"):
         query.add_argument("--" + name)
-    query.add_argument("--sort", default="title", choices=("title", "impact_factor", "sjr"))
+    query.add_argument("--sort", default="title", choices=("title", "abdc", "ajg", "wos_indexes", "lists", "impact_factor", "jcr_quartile", "sjr", "cas_zone", "subcategory"))
     query.add_argument("--order", default="asc", choices=("asc", "desc"))
     query.add_argument("--limit", type=int, default=50)
     query.add_argument("--offset", type=int, default=0)

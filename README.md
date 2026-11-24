@@ -107,7 +107,7 @@ GET /api/meta
 GET /api/export.csv?ft50=1
 ```
 
-筛选参数与 CLI 同名（连字符换成下划线）。`ft50`/`utd24` 接受 `1` 或 `0`。`limit` 为 1–500。支持 `source_type`、`subject`、`min_if`，以及 `sort=title|impact_factor|sjr`、`order=asc|desc`。
+筛选参数与 CLI 同名（连字符换成下划线）。`ft50`/`utd24` 接受 `1` 或 `0`。`limit` 为 1–500。排序字段为 `title|abdc|ajg|wos_indexes|lists|impact_factor|jcr_quartile|sjr|cas_zone|subcategory`，方向 `order=asc|desc`。网页点击表头切换升降序。评级/分区的 asc 为最好等级在前，数值按大小排序；缺失在两种方向均最后；名单按本地命中数量、WoS/细分类按名称组合排序。CSV 沿用筛选和排序条件。
 
 首次在另一台机器重建需要 Python 3.10+、带 FTS5 和 JSON1 的 SQLite，以及 `openpyxl`：
 

@@ -4,6 +4,7 @@ import json
 import re
 
 from playwright.sync_api import sync_playwright, expect
+from detail_helpers import detail_tab, source_record
 
 
 def run(url):
@@ -68,6 +69,7 @@ def run(url):
 
         page.locator("#rows .journal-btn").first.click()
         expect(page.locator("#detail")).to_be_visible()
+        source_record(page, "ABDC")
         expect(page.locator("#detail-body")).to_contain_text("2010 JQL", timeout=30000)
         expect(page.locator("#detail-body")).to_contain_text("查看原始字段")
         page.evaluate("window.JournalI18n.setLocale('en')")
