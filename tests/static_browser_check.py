@@ -57,7 +57,7 @@ def run(url):
 
         page.locator("#q").fill("Journal of Consumer Research")
         page.locator("#searchform button[type=submit]").click()
-        expect(page.locator("#rows .journal-btn").first).to_have_text("JOURNAL OF CONSUMER RESEARCH")
+        expect(page.locator("#rows .journal-btn").first).to_have_text("Journal of Consumer Research")
         page.locator("#rows .journal-btn").first.click()
         expect(page.locator("#detail")).to_be_visible()
         expect(page.locator("#detail-body")).to_contain_text("2010 JQL", timeout=30000)

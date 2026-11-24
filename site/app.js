@@ -4,6 +4,7 @@
   const $ = selector => document.querySelector(selector);
   const tr = (en, zh) => window.JournalI18n?.locale === 'zh' ? zh : en;
   const display = value => value === null || value === undefined || value === '' ? '—' : String(value);
+  const journalTitle = value => window.JournalTitle.format(value);
   const node = (tag, text, attrs = {}) => {
     const result = document.createElement(tag);
     if (text !== undefined && text !== null) result.textContent = String(text);
@@ -55,20 +56,19 @@
     : taxonomyLabel(path.broad_id);
   const taxonomyShortLabel = id => id === 'area-1400' ? tr('Business & Management', '商科与管理') : taxonomyLabel(id);
   const taxonomySummary = record => {
-    const paths = record.taxonomy_paths;
-    if (!paths?.length) return node('span', tr('No classification supplied', '本地来源未提供分类'), {class: 'na'});
+    const paths = (record.taxonomy_paths || []).filter(path => path.subcategory_id);
+    if (!paths.length) return node('span', '—', {class: 'na', title: tr('No subcategory supplied', '本地来源未提供细分类')});
     // Show the active filter's match first, without declaring a primary discipline.
     const selected = paths.find(path => state.applied.subcategory && path.subcategory_id === state.applied.subcategory)
       || paths.find(path => state.applied.broad_area && path.broad_id === state.applied.broad_area) || paths[0];
-    const name = taxonomyLabel(selected.subcategory_id || selected.broad_id);
+    const name = taxonomyLabel(selected.subcategory_id);
     const button = node('button', undefined, {type: 'button', class: 'taxonomy-summary',
-      title: paths.map(taxonomyPathText).join('\n'),
+      title: paths.map(path => taxonomyLabel(path.subcategory_id)).join('\n'),
       'aria-label': tr(`View ${paths.length} classifications: ${name}`, `查看 ${paths.length} 项分类：${name}`)});
     const primary = node('span', undefined, {class: 'taxonomy-primary'});
     primary.append(node('span', name, {class: 'taxonomy-name'}));
     if (paths.length > 1) primary.append(node('span', `+${paths.length - 1}`, {class: 'taxonomy-count'}));
     button.append(primary);
-    if (selected.subcategory_id) button.append(node('span', taxonomyShortLabel(selected.broad_id), {class: 'taxonomy-context'}));
     button.addEventListener('click', async () => {
       await openDetail(record.journal_id);
       if ($('#detail').open) $('#classification-evidence')?.scrollIntoView({block: 'start'});
@@ -116,7 +116,7 @@
     body.replaceChildren();
     for (const record of data.results) {
       const row = node('tr');
-      const button = node('button', record.title, {class: 'journal-btn', type: 'button'});
+      const button = node('button', journalTitle(record.title), {class: 'journal-btn', type: 'button'});
       button.addEventListener('click', () => openDetail(record.journal_id));
       const title = cell(button);
       if (record.issns?.length) title.append(node('span', record.issns.join(' · '), {class: 'issn'}));
@@ -197,7 +197,7 @@
   };
   function renderDetail(data) {
     const journal = data.journal;
-    $('#detail-title').textContent = journal.title;
+    $('#detail-title').textContent = journalTitle(journal.title);
     const body = $('#detail-body');
     const profile = node('div', undefined, {class: 'profile'});
     const fields = [

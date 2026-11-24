@@ -69,6 +69,10 @@ def run(url):
         assert max(tops) - min(tops) <= 1, tops
         first_row = page.locator("#rows tr").first
         expect(first_row.locator(".taxonomy-name")).to_have_text("Marketing")
+        expect(page.locator("#rows .taxonomy-context")).to_have_count(0)
+        assert "Business" not in first_row.locator(".taxonomy-summary").inner_text()
+        assert "›" not in first_row.locator(".taxonomy-summary").get_attribute("title")
+        assert "Business, Management and Accounting" not in first_row.locator(".taxonomy-summary").get_attribute("title")
         assert first_row.bounding_box()["height"] <= 95
         assert first_row.locator(".taxonomy-summary").get_attribute("title").count("\n") >= 1
         first_row.locator(".taxonomy-summary").click()
@@ -79,7 +83,7 @@ def run(url):
 
         page.locator("#q").fill("ejm")
         expect(page.locator("#rows .journal-btn")).to_have_count(1)
-        expect(page.locator("#rows .journal-btn")).to_have_text("EUROPEAN JOURNAL OF MARKETING")
+        expect(page.locator("#rows .journal-btn")).to_have_text("European Journal of Marketing")
         classification = page.locator("#rows tr td:last-child")
         expect(classification).to_contain_text("Marketing")
         assert "MKT" not in classification.inner_text()
@@ -130,6 +134,16 @@ def run(url):
         expect(page.locator("#broad_area")).to_have_value("")
         expect(page.locator("#subcategory")).to_be_disabled()
         expect(page.locator("#rows .journal-btn")).to_have_count(50)
+        page.locator("#q").fill("00280836")
+        expect(page.locator("#rows .journal-btn")).to_have_count(1)
+        expect(page.locator("#rows .journal-btn")).to_have_text("Nature")
+        expect(page.locator("#rows tr td:last-child")).to_have_text("—")
+        page.locator("#rows .journal-btn").click()
+        expect(page.locator("#classification-evidence")).to_contain_text(re.compile("Multidisciplinary|综合学科"), timeout=30000)
+        page.keyboard.press("Escape")
+        page.locator("#clear").click()
+        expect(page.locator("#rows .journal-btn")).to_have_count(50)
+        checks.append("broad-only classifications stay in details and never fill the subcategory column")
         page.set_viewport_size({"width": 390, "height": 844})
         assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
         assert not errors, errors

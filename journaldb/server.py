@@ -58,7 +58,7 @@ def serve(database=DEFAULT_DB, port=8765, open_browser=False):
             if parsed.path in ("/", "/index.html"):
                 self.respond(200, (ROOT / "web" / "index.html").read_bytes(), "text/html; charset=utf-8")
                 return
-            if parsed.path in ("/static-client.js", "/i18n.js", "/app.js", "/metric-info.js", "/help-popover.js"):
+            if parsed.path in ("/static-client.js", "/i18n.js", "/app.js", "/journal-title.js", "/metric-info.js", "/help-popover.js"):
                 self.respond(200, (ROOT / "web" / parsed.path[1:]).read_bytes(), "application/javascript; charset=utf-8")
                 return
             if parsed.path == "/help.css":
