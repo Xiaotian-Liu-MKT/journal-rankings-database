@@ -20,7 +20,7 @@
 - 详情：detail.css隔离弹窗样式；概览/分类/来源历史三标签，评级卡、分类证据与来源版次分别呈现；默认折叠原始信息，语言切换保留标签与展开状态。分类摘要深链可进入分类标签。
 - 排序：Results十列表头可切换升降序，query.py和static-client.js共用字段契约；评级按等级、数值按大小、名单按本地命中数、WoS/细分类按名称组合；缺失双向后置，导出沿用排序。
 - 紧凑展示：筛选标签简短，控件按网格底部对齐；分类列仅显示细分类及额外细分类+n数量，不回填大类；点击摘要定位完整层级详情。journal-title.js统一列表/详情主标题为Title Case（小词小写、保留常见缩写及品牌内大写）；原始来源刊名与导出保留原值。
-- 筛选交互：九项分类字段使用multi-select.js/css复选下拉，展开框与入口同宽、整行44px可点，桌面入口40px/触屏44px；同项OR、跨项AND；HTTP/CLI重复参数，空选择不限、已知值全选排除缺失；大类联动细分类并保留仍适用的选择。下拉框/复选框立即生效，搜索/学科/数值输入防抖250ms；无Apply按钮，Clear重置条件。
+- 筛选交互：九项分类字段使用multi-select.js/css复选下拉，展开框与入口同宽、整行至少56px可点，桌面入口40px/触屏44px；同项OR、跨项AND；HTTP/CLI重复参数，空选择不限、已知值全选排除缺失；大类联动细分类并保留仍适用的选择。下拉框/复选框立即生效，搜索/学科/数值输入防抖250ms；无Apply按钮，Clear重置条件。
 - 学科：网页使用统一大类/细分类，参数broad_area/subcategory，taxonomy_paths保存路径与direct/broader来源证据。classifications.py按taxonomy_data.json（ASJC骨架+AJG/ANZSRC/WoS项目映射）归并当前版；保留真实多学科，禁止宽类猜细类。旧subjects仅作详情辅助和兼容检索；改映射后重建数据库与site/。
 - 缩写检索：journaldb/acronyms.py 从来源别名派生含/不含连接词的首字母（ejm/jcr/jmr等）；只用于发现，保留重名候选。CLI/API只读注册SQLite函数；静态导出search_acronyms，浏览器使用同一派生结果。默认排序先全名再缩写匹配。
 - WoS：四份CSV分别作为SCIE/SSCI/AHCI/ESCI未标年份快照；概览wos_indexes/languages为JSON数组，wos_index参数筛选。不得用JCR年份填充其版次。

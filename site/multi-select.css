@@ -31,7 +31,7 @@
 .multi-select-options { min-height: 0; overflow: auto; overscroll-behavior: contain; }
 .filter-group .multi-select-option {
   box-sizing: border-box; display: flex; width: 100%; align-items: center;
-  gap: 10px; min-height: 44px; padding: 10px 12px; margin: 0;
+  gap: 10px; min-height: 56px; padding: 16px 12px; margin: 0;
   color: #344054; font-size: 13px; font-weight: 400; line-height: 1.45;
   cursor: pointer; touch-action: manipulation; user-select: none;
 }
