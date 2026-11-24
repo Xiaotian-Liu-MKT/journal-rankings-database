@@ -18,10 +18,29 @@
         row = document.createElement('label'); row.className = 'multi-select-option'; row.dataset.value = option.value;
         const input = document.createElement('input'); input.type = 'checkbox'; input.value = option.value;
         const content = document.createElement('span'); row.append(input, content); list.append(row);
-        input.addEventListener('change', () => {
+        const updateSelection = selected => {
           const target = [...select.options].find(item => item.value === input.value);
-          if (target) target.selected = input.checked;
+          if (!target || select.disabled) return;
+          target.selected = selected;
           refresh(widget); select.dispatchEvent(new Event('change', {bubbles: true}));
+        };
+        input.addEventListener('change', () => updateSelection(input.checked));
+        row.addEventListener('mousedown', event => {
+          // Keep focus inside the popup until click completes. Otherwise a
+          // normal press on label padding can blur the checkbox and close
+          // the popup before mouseup reaches this row.
+          if (event.button === 0 && event.target !== input) event.preventDefault();
+        });
+        row.addEventListener('click', event => {
+          // Handle text and padding explicitly instead of depending on the
+          // browser forwarding a label click to its checkbox. Input clicks
+          // and keyboard Space keep the native checkbox change path.
+          if (event.target === input) return;
+          event.preventDefault();
+          const target = [...select.options].find(item => item.value === input.value);
+          if (!target || select.disabled) return;
+          updateSelection(!target.selected);
+          input.focus({preventScroll: true});
         });
       }
       row.querySelector('input').checked = option.selected;

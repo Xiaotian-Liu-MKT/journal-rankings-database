@@ -26,6 +26,11 @@ def run(url):
         page.evaluate("""() => {
           const original=fetch; window.filterCalls=0;
           window.fetch=(...args)=>{if(String(args[0]).includes('/api/journals?'))window.filterCalls++;return original(...args)};
+          // The row must work even when implicit label activation is absent.
+          window.blockLabelForwarding=true;
+          document.addEventListener('click', event=>{
+            if(window.blockLabelForwarding && event.target.closest('.multi-select-option') && event.target.tagName!=='INPUT') event.preventDefault();
+          }, true);
         }""")
 
         def panel(key):
@@ -42,7 +47,7 @@ def run(url):
             rect = row.bounding_box()
             assert rect["height"] >= 44
             # Click the empty right edge, away from both checkbox and text.
-            row.click(position={"x": rect["width"] - 5, "y": rect["height"] / 2})
+            row.click(position={"x": rect["width"] - 5, "y": rect["height"] / 2}, delay=150)
             expect(option).to_be_checked(checked=checked)
             page.wait_for_function("filterCalls === " + str(before + 1))
             expect(page.locator("#export-link")).to_have_attribute("aria-disabled", "false")
@@ -71,6 +76,7 @@ def run(url):
         toggle("abdc", "A*")
         toggle("abdc", "A")
         expect(page.locator("#abdc")).to_have_values(["A*", "A"])
+        page.evaluate("window.blockLabelForwarding=false")
         popup = panel("abdc")
         assert abs(popup.bounding_box()["width"] - page.locator("#abdc-trigger").bounding_box()["width"]) <= 1
         expect(popup.locator(".multi-select-tools")).to_be_hidden()
@@ -81,13 +87,21 @@ def run(url):
         popup.locator('input[value="B"]').click()
         expect(page.locator("#abdc")).to_have_values(["A*", "A"])
         expect(page.locator("#export-link")).to_have_attribute("aria-disabled", "false")
+        before = page.evaluate("filterCalls")
+        popup.locator('input[value="B"]').focus()
+        page.keyboard.press("Space")
+        expect(page.locator("#abdc")).to_have_values(["A*", "A", "B"])
+        page.keyboard.press("Space")
+        expect(page.locator("#abdc")).to_have_values(["A*", "A"])
+        assert page.evaluate("filterCalls") == before + 2
+        expect(page.locator("#export-link")).to_have_attribute("aria-disabled", "false")
         close()
         expect(page.locator("#abdc-trigger")).to_be_focused()
         values = parse_qs(urlsplit(page.locator("#export-link").get_attribute("href")).query)
         assert values["abdc"] == ["A*", "A"]
         result = parity({"abdc": ["A*", "A"], "limit": 500})
         assert result["total"] == search(con, abdc="A*")["total"] + search(con, abdc="A")["total"]
-        checks.append("full-row/text/checkbox hit areas, compact panel, union and one request per change")
+        checks.append("explicit row clicks work without label forwarding; square/Space toggle once; one request per change")
 
         toggle("jcr_quartile", "Q1")
         toggle("jcr_quartile", "Q2")
