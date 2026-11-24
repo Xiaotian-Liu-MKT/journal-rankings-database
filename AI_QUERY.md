@@ -9,13 +9,15 @@
 3. 对选中 `journal_id` 运行 `python -m journaldb show <id>`，核对版次与质量标记，读取各学科分区、原始名次和历史评级。
 4. 给用户回答时标注体系、版次和本地来源；例如“ABDC 2025：A*；AJG 2024：4*”。JCR 指标年须写“源表标注 2025，未独立核验”。
 
+评级、分区、WoS、类型与两级学科可多选，重复 CLI 参数（如 `--abdc A* --abdc A`）或重复 API 参数表示同项 OR；不同字段仍是 AND。无选择表示不限，选全部已知值仍排除缺失。
+
 `search` 不支持自然语言条件解析。AI 应把“ABDC A* 且 UTD24”转换成 `--abdc 'A*' --utd24 1`；把“影响因子至少5”转换成 `--min-if 5`。未知评级、空值和名单 false 不等同于零。
 
 排序支持 `title`、`abdc`、`ajg`、`wos_indexes`、`lists`、`impact_factor`、`jcr_quartile`、`sjr`、`cas_zone`、`subcategory`，方向为 `asc`/`desc`，两个方向均将缺失放最后。ABDC/AJG/JCR/CAS 按等级排序（asc 最好在前）；名单按本地 FT50/UTD24 命中数量排序，0 为有效值；WoS 按索引名称组合、细分类按全部英文细分类名称组合排序。细分类不由大类回填。分页与 CSV 导出使用同一排序条件。
 
 ## 统一学科分类
 
-网页使用一套统一的两层分类，CLI/API 对应 `--broad-area` / `broad_area` 和 `--subcategory` / `subcategory`。例如 `python -m journaldb search --broad-area area-1400 --subcategory asjc-1406` 查询市场营销。节点 ID 与双语标签见 `meta.taxonomy.nodes`；大类查询包含该大类直接归属和全部细分类，细分类查询只命中有明确细分类依据的条目。父子参数必须来自同一分支。
+网页使用一套统一的两层分类，CLI/API 对应 `--broad-area` / `broad_area` 和 `--subcategory` / `subcategory`。例如 `python -m journaldb search --broad-area area-1400 --subcategory asjc-1406` 查询市场营销。节点 ID 与双语标签见 `meta.taxonomy.nodes`；大类查询包含该大类直接归属和全部细分类，细分类查询只命中有明确细分类依据的条目。多选时每个细分类必须属于所选大类之一，且查询在同一分类路径上匹配；单独传细分类仍可用。
 
 分类以 Scopus ASJC 层级为骨架，融合 SJR、AJG 2024、ABDC 2025 的 ANZSRC 2020 FoR，以及 JCR/WoS 标签。`journaldb/taxonomy_data.json` 是版本化的本项目映射，跨体系关系不宣称为官方对照表。相容的宽类被细类替代展示，真实多学科分支保留；不从刊名、宽泛学科或历史版次推断更细归属。
 

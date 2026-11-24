@@ -166,6 +166,52 @@ class DatabaseTests(unittest.TestCase):
         for item in results["results"]:
             self.assertEqual((item["abdc"], item["ajg"], item["ft50"], item["utd24"]), ("A*", "4*", True, True))
 
+    def test_multi_value_filters_use_union_with_cross_field_intersection(self):
+        """Repeated/list/CSV choices are OR per field and AND across fields."""
+        def ids(**params):
+            where, values = filters(params)
+            return {row[0] for row in self.con.execute("SELECT c.journal_id FROM catalogue c" + where, values)}
+
+        a_star = ids(abdc="A*")
+        a = ids(abdc="A")
+        self.assertEqual(ids(abdc=["A*", "A"]), a_star | a)
+        self.assertEqual(ids(abdc=" A*, A ,A* "), a_star | a)
+        q1 = ids(jcr_quartile="Q1")
+        q2 = ids(jcr_quartile="Q2")
+        self.assertEqual(ids(jcr_quartile=("Q1", "Q2")), q1 | q2)
+        scie = ids(wos_index="SCIE")
+        ssci = ids(wos_index="SSCI")
+        self.assertEqual(ids(wos_index=["SCIE", "SSCI"]), scie | ssci)
+        self.assertEqual(ids(abdc=["A*", "A"], ajg=["4*", "4"]),
+                         (a_star | a) & (ids(ajg="4*") | ids(ajg="4")))
+        # An empty explicit selection is intentionally unrestricted, so NULLs
+        # remain in scope unlike choosing every real grade.
+        self.assertEqual(ids(abdc=[]), ids())
+        self.assertLess(len(ids(abdc=["A*", "A", "B", "C"])), len(ids()))
+        for invalid in ({"abdc": ["A*", "D"]}, {"wos_index": "SCIE,JCR"},
+                        {"jcr_quartile": ["Q1", "Q5"]}):
+            with self.assertRaises(ValueError):
+                filters(invalid)
+
+    def test_multi_taxonomy_filters_keep_root_and_leaf_on_same_path(self):
+        taxonomy = load_taxonomy()
+        roots = [node["id"] for node in taxonomy["nodes"] if node.get("parent_id") is None]
+        leaves = [node for node in taxonomy["nodes"] if node.get("parent_id")]
+        self.assertTrue(roots and leaves)
+        leaf = leaves[0]
+        parent = leaf["parent_id"]
+        result = search(self.con, broad_area=[parent], subcategory=[leaf["id"]], limit=500)
+        for record in result["results"]:
+            self.assertTrue(any(path["broad_id"] == parent and path["subcategory_id"] == leaf["id"]
+                                for path in record["taxonomy_paths"]))
+        other_root = next(root for root in roots if root != parent)
+        with self.assertRaises(ValueError):
+            search(self.con, broad_area=[other_root], subcategory=[leaf["id"]])
+        # A leaf can still be queried directly by the API/CLI contract.
+        direct = search(self.con, subcategory=leaf["id"], limit=500)
+        for record in direct["results"]:
+            self.assertTrue(any(path["subcategory_id"] == leaf["id"] for path in record["taxonomy_paths"]))
+
     def test_jcr_all_categories_and_sjr_decimal(self):
         journal = search(self.con, q="CA-A CANCER JOURNAL FOR CLINICIANS")["results"][0]
         self.assertEqual(journal["sjr"], 104.065)

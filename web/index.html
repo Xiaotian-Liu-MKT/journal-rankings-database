@@ -18,6 +18,7 @@
   <link rel="icon" type="image/png" href="brand/panda-emperor.png">
   <link rel="stylesheet" href="help.css">
   <link rel="stylesheet" href="detail.css">
+  <link rel="stylesheet" href="multi-select.css">
 </head>
 <body>
   <header class="masthead"><div class="brand"><div class="brand-copy"><h1 data-i18n="title">Journal search</h1><p class="subline" data-i18n="description">Search journal rankings, indicators, and source records.</p></div><select id="language" aria-label="Language"><option value="en">English</option><option value="zh">中文</option></select><div class="brand-scene"><img id="brand-logo" src="brand/panda-emperor.png" width="220" height="170" alt="Panda emperor on an ice throne amid swirling wind"></div></div></header>
@@ -25,15 +26,15 @@
     <section class="intro"><div><p data-i18n="intro">Blank values mean unavailable or conflicting source data. List matches do not mean zero.</p></div><div class="statline" id="statline">Loading…</div></section>
     <div class="workbench">
       <details class="filters" id="filter-panel" open><summary data-i18n="filters">Filters</summary><div class="filter-content">
-        <div class="filter-group"><label for="abdc">ABDC 分级</label><select id="abdc" data-param="abdc"><option value="">全部</option><option>A*</option><option>A</option><option>B</option><option>C</option></select></div>
-        <div class="filter-group"><label for="ajg">AJG / ABS 2024</label><select id="ajg" data-param="ajg"><option value="">全部</option><option>4*</option><option>4</option><option>3</option><option>2</option><option>1</option></select></div>
-        <div class="filter-group"><label for="wos_index" data-i18n="wos">WoS index</label><select id="wos_index" data-param="wos_index"><option value="">All</option><option>SCIE</option><option>SSCI</option><option>AHCI</option><option>ESCI</option></select></div>
-        <div class="filter-group"><label for="cas">中科院分区</label><select id="cas" data-param="cas"><option value="">全部</option><option value="1">Q1</option><option value="2">Q2</option><option value="3">Q3</option><option value="4">Q4</option></select></div>
-        <div class="filter-group"><label for="jcr_quartile">JCR 分区</label><select id="jcr_quartile" data-param="jcr_quartile"><option value="">全部</option><option>Q1</option><option>Q2</option><option>Q3</option><option>Q4</option></select></div>
-        <div class="filter-group"><label for="sjr_quartile">SJR 分区</label><select id="sjr_quartile" data-param="sjr_quartile"><option value="">全部</option><option>Q1</option><option>Q2</option><option>Q3</option><option>Q4</option></select></div>
-        <div class="filter-group"><label for="broad_area">统一分类：大类</label><select id="broad_area" data-param="broad_area"><option value="">全部大类</option></select></div>
-        <div class="filter-group"><label for="subcategory">统一分类：子类</label><select id="subcategory" data-param="subcategory" disabled><option value="">全部子类</option></select></div>
-        <div class="filter-group"><label for="source_type">SJR 出版物类型</label><select id="source_type" data-param="source_type"><option value="">全部（仅有 SJR 类型的条目）</option><option value="journal">期刊</option><option value="book series">丛书</option><option value="conference and proceedings">会议与论文集</option><option value="trade journal">行业期刊</option></select></div>
+        <div class="filter-group"><label for="abdc">ABDC 分级</label><select id="abdc" data-param="abdc" multiple data-multi><option value="">全部</option><option>A*</option><option>A</option><option>B</option><option>C</option></select></div>
+        <div class="filter-group"><label for="ajg">AJG / ABS 2024</label><select id="ajg" data-param="ajg" multiple data-multi><option value="">全部</option><option>4*</option><option>4</option><option>3</option><option>2</option><option>1</option></select></div>
+        <div class="filter-group"><label for="wos_index" data-i18n="wos">WoS index</label><select id="wos_index" data-param="wos_index" multiple data-multi><option value="">All</option><option>SCIE</option><option>SSCI</option><option>AHCI</option><option>ESCI</option></select></div>
+        <div class="filter-group"><label for="cas">中科院分区</label><select id="cas" data-param="cas" multiple data-multi><option value="">全部</option><option value="1">Q1</option><option value="2">Q2</option><option value="3">Q3</option><option value="4">Q4</option></select></div>
+        <div class="filter-group"><label for="jcr_quartile">JCR 分区</label><select id="jcr_quartile" data-param="jcr_quartile" multiple data-multi><option value="">全部</option><option>Q1</option><option>Q2</option><option>Q3</option><option>Q4</option></select></div>
+        <div class="filter-group"><label for="sjr_quartile">SJR 分区</label><select id="sjr_quartile" data-param="sjr_quartile" multiple data-multi><option value="">全部</option><option>Q1</option><option>Q2</option><option>Q3</option><option>Q4</option></select></div>
+        <div class="filter-group"><label for="broad_area">统一分类：大类</label><select id="broad_area" data-param="broad_area" multiple data-multi><option value="">全部大类</option></select></div>
+        <div class="filter-group"><label for="subcategory">统一分类：子类</label><select id="subcategory" data-param="subcategory" multiple data-multi disabled><option value="">全部子类</option></select></div>
+        <div class="filter-group"><label for="source_type">SJR 出版物类型</label><select id="source_type" data-param="source_type" multiple data-multi><option value="">全部（仅有 SJR 类型的条目）</option><option value="journal">期刊</option><option value="book series">丛书</option><option value="conference and proceedings">会议与论文集</option><option value="trade journal">行业期刊</option></select></div>
         <div class="filter-group"><label for="min_if">最低 JIF</label><input id="min_if" data-param="min_if" type="number" min="0" step="0.1" placeholder="如 5"></div>
         <div class="filter-group"><fieldset><legend>名单收录</legend><div class="checkgrid"><label><input id="ft50" data-param="ft50" type="checkbox">FT50</label><label><input id="utd24" data-param="utd24" type="checkbox">UTD24</label></div></fieldset></div>
         <div class="filter-actions"><button class="button alt" id="clear" type="button" data-i18n="clear">Clear</button></div>
@@ -52,6 +53,7 @@
   <script src="static-client.js"></script>
   <script src="metric-info.js"></script>
   <script src="journal-title.js"></script>
+  <script src="multi-select.js"></script>
   <script src="app.js"></script>
   <script src="help-popover.js"></script>
 

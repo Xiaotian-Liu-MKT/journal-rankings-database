@@ -21,10 +21,23 @@
   const params = () => {
     const values = {limit: state.limit, offset: state.offset, sort: state.sort, order: state.order};
     document.querySelectorAll('[data-param]').forEach(control => {
+      if (control.multiple) {
+        const selected = [...control.selectedOptions].map(option => option.value.trim()).filter(Boolean);
+        if (selected.length) values[control.dataset.param] = selected;
+        return;
+      }
       const value = control.type === 'checkbox' ? (control.checked ? '1' : '') : control.value.trim();
       if (value) values[control.dataset.param] = value;
     });
     return values;
+  };
+  const queryString = values => {
+    const search = new URLSearchParams();
+    Object.entries(values).forEach(([key, value]) => {
+      if (Array.isArray(value)) value.forEach(item => search.append(key, item));
+      else search.append(key, value);
+    });
+    return search.toString();
   };
   const badge = value => node('span', display(value), {class: value == null || value === '' ? 'na' : 'badge'});
   const explain = (element, type, value, edition) => {
@@ -60,8 +73,10 @@
     const paths = (record.taxonomy_paths || []).filter(path => path.subcategory_id);
     if (!paths.length) return node('span', '—', {class: 'na', title: tr('No subcategory supplied', '本地来源未提供细分类')});
     // Show the active filter's match first, without declaring a primary discipline.
-    const selected = paths.find(path => state.applied.subcategory && path.subcategory_id === state.applied.subcategory)
-      || paths.find(path => state.applied.broad_area && path.broad_id === state.applied.broad_area) || paths[0];
+    const selectedSubcategories = Array.isArray(state.applied.subcategory) ? state.applied.subcategory : [state.applied.subcategory].filter(Boolean);
+    const selectedBroadAreas = Array.isArray(state.applied.broad_area) ? state.applied.broad_area : [state.applied.broad_area].filter(Boolean);
+    const selected = paths.find(path => selectedSubcategories.includes(path.subcategory_id))
+      || paths.find(path => selectedBroadAreas.includes(path.broad_id)) || paths[0];
     const name = taxonomyLabel(selected.subcategory_id);
     const button = node('button', undefined, {type: 'button', class: 'taxonomy-summary',
       title: paths.map(path => taxonomyLabel(path.subcategory_id)).join('\n'),
@@ -76,17 +91,20 @@
   function populateTaxonomyControls() {
     const broad = $('#broad_area'), leaf = $('#subcategory');
     if (!broad || !leaf || !state.metadata?.taxonomy) return;
-    const currentBroad = broad.value, currentLeaf = leaf.value;
+    const currentBroad = [...broad.selectedOptions].map(option => option.value).filter(Boolean);
+    const currentLeaf = [...leaf.selectedOptions].map(option => option.value).filter(Boolean);
     const nodes = taxonomy().nodes || [];
     const roots = nodes.filter(item => !item.parent_id);
     broad.replaceChildren(node('option', tr('All broad areas', '全部大类'), {value: ''}), ...roots.map(item => node('option', taxonomyShortLabel(item.id), {value: item.id, title: taxonomyLabel(item.id)})));
-    broad.value = roots.some(item => item.id === currentBroad) ? currentBroad : '';
-    const children = nodes.filter(item => item.parent_id === broad.value);
+    [...broad.options].forEach(option => { option.selected = currentBroad.includes(option.value); });
+    const selectedRoots = currentBroad.filter(value => roots.some(item => item.id === value));
+    const children = nodes.filter(item => selectedRoots.includes(item.parent_id));
     leaf.replaceChildren(node('option', tr('All subcategories', '全部子类'), {value: ''}), ...children.map(item => node('option', taxonomyLabel(item.id), {value: item.id})));
-    leaf.disabled = !broad.value || !children.length;
-    leaf.value = children.some(item => item.id === currentLeaf) ? currentLeaf : '';
-    broad.title = broad.value ? taxonomyLabel(broad.value) : tr('All broad areas', '全部大类');
-    leaf.title = leaf.value ? taxonomyLabel(leaf.value) : tr('All subcategories', '全部子类');
+    leaf.disabled = !selectedRoots.length || !children.length;
+    [...leaf.options].forEach(option => { option.selected = currentLeaf.includes(option.value); });
+    broad.title = selectedRoots.length ? selectedRoots.map(taxonomyLabel).join(', ') : tr('All broad areas', '全部大类');
+    leaf.title = currentLeaf.length ? currentLeaf.map(taxonomyLabel).join(', ') : tr('All subcategories', '全部子类');
+    window.JournalMultiSelect?.refresh(broad); window.JournalMultiSelect?.refresh(leaf);
     $('#classification-heading').textContent = tr('Unified classification', '统一分类');
   }
   function sortIndicators() {
@@ -100,7 +118,7 @@
     $('#next').disabled = !available || state.offset + state.limit >= state.total;
     const link = $('#export-link');
     link.setAttribute('aria-disabled', String(!available));
-    if (available) link.href = '/api/export.csv?' + new URLSearchParams(state.applied);
+    if (available) link.href = '/api/export.csv?' + queryString(state.applied);
     else link.removeAttribute('href');
   }
   function messageRow(message) {
@@ -159,7 +177,7 @@
     messageRow(tr('Loading results…', '正在加载结果…'));
     controls(false);
     try {
-      const response = await fetch('/api/journals?' + new URLSearchParams(applied), {signal: state.controller.signal});
+      const response = await fetch('/api/journals?' + queryString(applied), {signal: state.controller.signal});
       const data = await response.json();
       if (request !== state.request) return;
       if (!response.ok) throw new Error(data.error || tr(`Request failed (${response.status}).`, `请求失败（${response.status}）。`));
@@ -482,7 +500,6 @@
     }
   });
   $('#broad_area').addEventListener('change', () => {
-    $('#subcategory').value = '';
     populateTaxonomyControls();
     load(true);
   });
@@ -490,9 +507,11 @@
   $('#clear').addEventListener('click', () => {
     document.querySelectorAll('[data-param]').forEach(control => {
       if (control.type === 'checkbox') control.checked = false;
+      else if (control.multiple) [...control.options].forEach(option => { option.selected = false; });
       else control.value = control.id === 'sort' ? 'title' : '';
     });
     populateTaxonomyControls();
+    window.JournalMultiSelect?.refresh();
     state.sort = 'title'; state.order = 'asc'; load(true);
   });
   document.querySelectorAll('th [data-sort]').forEach(button => button.addEventListener('click', () => {

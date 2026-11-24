@@ -41,7 +41,7 @@ def run(url):
             }""", params)
 
         before = page.evaluate("taxQueries")
-        page.locator("#broad_area").select_option("area-1400")
+        page.locator("#broad_area").select_option("area-1400", force=True)
         expect(page.locator("#subcategory")).to_be_enabled()
         page.wait_for_function("taxQueries > " + str(before))
         expect(page.locator("#rows .journal-btn")).to_have_count(50)
@@ -50,7 +50,7 @@ def run(url):
         assert not page.locator('#subcategory option[value="asjc-2705"]').count()
         checks.append("single taxonomy; dependent broad/leaf controls and one live request")
 
-        page.locator("#subcategory").select_option("asjc-1406")
+        page.locator("#subcategory").select_option("asjc-1406", force=True)
         expect(page.locator("#export-link")).to_have_attribute("href", re.compile("subcategory=asjc-1406"))
         result = api({"broad_area": "area-1400", "subcategory": "asjc-1406", "limit": "500"})
         assert result["status"] == 200
@@ -66,7 +66,7 @@ def run(url):
         assert api({"subcategory": "unknown-category"})["status"] == 400
         checks.append("exact leaf filter, API/CLI parity, invalid IDs and mismatched branches")
 
-        tops = page.evaluate("""() => ['#broad_area','#subcategory','#source_type','#min_if','.checkgrid','#clear'].map(selector => document.querySelector(selector).getBoundingClientRect().top)""")
+        tops = page.evaluate("""() => ['#broad_area-trigger','#subcategory-trigger','#source_type-trigger','#min_if','.checkgrid','#clear'].map(selector => document.querySelector(selector).getBoundingClientRect().top)""")
         assert max(tops) - min(tops) <= 1, tops
         first_row = page.locator("#rows tr").first
         expect(first_row.locator(".taxonomy-name")).to_have_text("Marketing")
@@ -99,8 +99,8 @@ def run(url):
         requests = page.evaluate("taxQueries")
         page.locator("#language").select_option("zh")
         expect(classification).to_contain_text("市场营销")
-        expect(page.locator("#broad_area")).to_have_value("area-1400")
-        expect(page.locator("#subcategory")).to_have_value("asjc-1406")
+        expect(page.locator("#broad_area")).to_have_values(["area-1400"])
+        expect(page.locator("#subcategory")).to_have_values(["asjc-1406"])
         assert page.evaluate("taxQueries") == requests
         page.locator("#rows .journal-btn").click()
         detail_tab(page, "classification")
@@ -131,10 +131,10 @@ def run(url):
         assert "taxonomy_paths" not in reader.fieldnames
         checks.append("CSV exports the same filtered journal with readable unified classification")
 
-        page.locator("#broad_area").select_option("area-2700")
-        expect(page.locator("#subcategory")).to_have_value("")
+        page.locator("#broad_area").select_option("area-2700", force=True)
+        expect(page.locator("#subcategory")).to_have_values([])
         page.locator("#clear").click()
-        expect(page.locator("#broad_area")).to_have_value("")
+        expect(page.locator("#broad_area")).to_have_values([])
         expect(page.locator("#subcategory")).to_be_disabled()
         expect(page.locator("#rows .journal-btn")).to_have_count(50)
         page.locator("#q").fill("00280836")

@@ -8,7 +8,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from . import ROOT, DEFAULT_DB
-from .query import connect, decode, detail, meta, search, selection
+from .query import MULTI_FILTERS, connect, decode, detail, meta, search, selection
 
 
 def serve(database=DEFAULT_DB, port=8765, open_browser=False):
@@ -54,14 +54,15 @@ def serve(database=DEFAULT_DB, port=8765, open_browser=False):
 
         def do_GET(self):
             parsed = urlparse(self.path)
-            params = {key: values[-1] for key, values in parse_qs(parsed.query).items()}
+            params = {key: values if key in MULTI_FILTERS else values[-1]
+                      for key, values in parse_qs(parsed.query).items()}
             if parsed.path in ("/", "/index.html"):
                 self.respond(200, (ROOT / "web" / "index.html").read_bytes(), "text/html; charset=utf-8")
                 return
-            if parsed.path in ("/static-client.js", "/i18n.js", "/app.js", "/journal-title.js", "/metric-info.js", "/help-popover.js"):
+            if parsed.path in ("/static-client.js", "/i18n.js", "/app.js", "/journal-title.js", "/metric-info.js", "/help-popover.js", "/multi-select.js"):
                 self.respond(200, (ROOT / "web" / parsed.path[1:]).read_bytes(), "application/javascript; charset=utf-8")
                 return
-            if parsed.path in ("/help.css", "/detail.css"):
+            if parsed.path in ("/help.css", "/detail.css", "/multi-select.css"):
                 self.respond(200, (ROOT / "web" / parsed.path[1:]).read_bytes(), "text/css; charset=utf-8")
                 return
             if parsed.path in ("/brand/panda-throne.png", "/brand/panda-emperor.png"):

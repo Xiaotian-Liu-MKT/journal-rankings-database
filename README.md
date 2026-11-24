@@ -6,7 +6,7 @@
 
 界面采用简洁的白底表格布局，首次打开默认英文。可在右上角切换 English / 中文，浏览器会记住选择；切换语言保留当前查询与筛选，期刊名和原始来源字段保持原文。
 
-筛选实时生效，无需点击 Apply。可按 SCIE、SSCI、AHCI 或 ESCI 查询对应本地名录中的期刊；这些名录未标注年份，与 JCR 指标年份分别保留。
+筛选实时生效，无需点击 Apply。评级、分区、WoS 索引、出版物类型及学科大类/细分类均可多选；同一项内满足任一所选值即可，不同项之间同时满足。未选择表示不限，选择全部已知等级仍排除缺失评级。大类增加时保留已有细分类，移除时只清除失去所属大类的细分类。可按 SCIE、SSCI、AHCI 或 ESCI 查询对应本地名录中的期刊；这些名录未标注年份，与 JCR 指标年份分别保留。
 
 在具体评级、指标或索引标记上停留约半秒，可查看中英文解释、当前值的含义与官方说明链接。键盘聚焦也可查看，手机可点按打开；浮窗支持关闭和 Esc。
 
@@ -76,7 +76,7 @@ SQLite 位于 `data/journals.sqlite`。不启动网页也能直接用 Python `sq
 
 网页学科筛选使用统一的“大类 → 细分类”。以 Scopus ASJC 层级为骨架，融合当前 SJR、AJG、ABDC FoR 与 JCR/WoS 分类；Marketing、MKT 等相容标签合并，宽泛 Business 作为上级依据，跨学科分支保留。映射为本项目维护的 `journaldb/taxonomy_data.json`，不是官方跨体系对照表。只知道大类时不会猜细分类；未提供分类时保留缺失。来源、版次与直接/上级分类证据可在详情追溯，旧混合标签折叠为辅助信息。
 
-CLI/API 使用 `--broad-area area-1400 --subcategory asjc-1406` / `broad_area=area-1400&subcategory=asjc-1406` 查询市场营销。可选节点见 `meta.taxonomy.nodes`，父子参数须在同一分支。旧 `--subject` 兼容混合标签关键词查询。
+CLI/API 使用 `--broad-area area-1400 --subcategory asjc-1406` / `broad_area=area-1400&subcategory=asjc-1406` 查询市场营销。可选节点见 `meta.taxonomy.nodes`，每个所选细分类须属于所选大类之一；多选大类与细分类必须在同一分类路径匹配。旧 `--subject` 兼容混合标签关键词查询。
 
 JCR 与 SJR 的概览分区均为各自的最佳分区，不可互换；JCR 的各个学科及名次保存在详情 `metrics.categories`。统一学科与最佳分区分别保留，不能据此把最佳分区归给指定学科。
 
@@ -107,7 +107,7 @@ GET /api/meta
 GET /api/export.csv?ft50=1
 ```
 
-筛选参数与 CLI 同名（连字符换成下划线）。`ft50`/`utd24` 接受 `1` 或 `0`。`limit` 为 1–500。排序字段为 `title|abdc|ajg|wos_indexes|lists|impact_factor|jcr_quartile|sjr|cas_zone|subcategory`，方向 `order=asc|desc`。网页点击表头切换升降序。评级/分区的 asc 为最好等级在前，数值按大小排序；缺失在两种方向均最后；名单按本地命中数量、WoS/细分类按名称组合排序。CSV 沿用筛选和排序条件。
+筛选参数与 CLI 同名（连字符换成下划线）。九个多选参数 `abdc|ajg|cas|jcr_quartile|sjr_quartile|wos_index|source_type|broad_area|subcategory` 可重复传入，例如 `--abdc A* --abdc A` 或 `abdc=A%2A&abdc=A`；兼容单值及逗号分隔值，Python 查询接口也接受列表/元组。`ft50`/`utd24` 接受 `1` 或 `0`。`limit` 为 1–500。排序字段为 `title|abdc|ajg|wos_indexes|lists|impact_factor|jcr_quartile|sjr|cas_zone|subcategory`，方向 `order=asc|desc`。网页点击表头切换升降序。评级/分区的 asc 为最好等级在前，数值按大小排序；缺失在两种方向均最后；名单按本地命中数量、WoS/细分类按名称组合排序。CSV 沿用筛选和排序条件。
 
 首次在另一台机器重建需要 Python 3.10+、带 FTS5 和 JSON1 的 SQLite，以及 `openpyxl`：
 

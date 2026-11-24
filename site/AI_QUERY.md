@@ -6,7 +6,7 @@
 - `assets/manifest.json`：字段顺序、来源、数据版本、统计。
 - `assets/catalogue.json.gz`：gzip JSON 二维数组，按 manifest.columns 映射为对象。
 - `assets/details/{前两位ID}.json.gz`：完整详情分片。ID 为 j_abc... 时分片为 ab。
-- 浏览器界面提供组合查询与 CSV 下载。静态站不提供 /api/journals HTTP 服务。
+- 浏览器界面提供多选组合查询与 CSV 下载；同字段所选值为 OR，不同字段为 AND，空选不限制。评级、分区、索引、出版类型和两级学科均可多选。静态站不提供 /api/journals HTTP 服务。
 - 支持刊名首字母缩写（如 ejm），忽略大小写及连接词；缩写重名时保留全部候选。search_acronyms 为派生检索值，不是官方别名。
 - manifest.taxonomy 提供统一学科节点；概览 taxonomy_paths 包含大类、细分类与 direct/broader 来源证据。网页按 broad_area/subcategory 筛选，subjects 仅作旧版辅助标签。映射以ASJC为骨架，由本项目归并AJG、ABDC FoR、SJR与JCR/WoS，不是官方跨体系对照表；不由宽类猜细类。
 

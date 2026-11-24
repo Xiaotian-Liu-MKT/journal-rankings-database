@@ -13,6 +13,11 @@ from .classifications import load_taxonomy, taxonomy_definition, taxonomy_metada
 SORT_FIELDS = ("title", "abdc", "ajg", "wos_indexes", "lists", "impact_factor",
                "jcr_quartile", "sjr", "cas_zone", "subcategory")
 
+# These parameters deliberately accept more than one value.  They are shared
+# by the Python API, repeated HTTP query parameters, and repeated CLI flags.
+MULTI_FILTERS = ("abdc", "ajg", "cas", "jcr_quartile", "sjr_quartile",
+                 "wos_index", "source_type", "broad_area", "subcategory")
+
 
 def _json_list(value):
     """Return a JSON list from a catalogue value, or an empty list when absent."""
@@ -84,6 +89,25 @@ def like(value):
     return "%" + value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
 
 
+def multi_values(params, field):
+    """Normalize scalar/repeated/CSV filter input without treating blanks as a choice."""
+    raw = params.get(field)
+    if raw is None:
+        return []
+    raw_values = raw if isinstance(raw, (list, tuple)) else (raw,)
+    result = []
+    for raw_value in raw_values:
+        for value in str(raw_value).split(","):
+            value = value.strip()
+            if value and value not in result:
+                result.append(value)
+    return result
+
+
+def placeholders(values):
+    return ",".join("?" for _ in values)
+
+
 def filters(params):
     clauses, values = [], []
     q = str(params.get("q", "")).strip()
@@ -114,49 +138,52 @@ def filters(params):
                 values.append(acronym)
     allowed = {"abdc": ("A*", "A", "B", "C"), "ajg": ("4*", "4", "3", "2", "1"),
                "cas": ("1", "2", "3", "4"), "jcr_quartile": ("Q1", "Q2", "Q3", "Q4"),
-               "sjr_quartile": ("Q1", "Q2", "Q3", "Q4"), "ft50": ("0", "1"), "utd24": ("0", "1"),
+               "sjr_quartile": ("Q1", "Q2", "Q3", "Q4"),
                "source_type": ("journal", "book series", "conference and proceedings", "trade journal")}
     for field, choices in allowed.items():
+        selected = multi_values(params, field)
+        if not selected:
+            continue
+        if any(value not in choices for value in selected):
+            raise ValueError(f"{field} 必须为 {', '.join(choices)}")
+        clauses.append("c." + ("cas_zone" if field == "cas" else field) + f" IN ({placeholders(selected)})")
+        values.extend(selected)
+    for field in ("ft50", "utd24"):
         value = params.get(field)
         if value is None or value == "":
             continue
         value = str(value)
-        if value not in choices:
-            raise ValueError(f"{field} 必须为 {', '.join(choices)}")
-        clauses.append("c." + ("cas_zone" if field == "cas" else field) + "=?")
+        if value not in ("0", "1"):
+            raise ValueError(f"{field} 必须为 0, 1")
+        clauses.append("c." + field + "=?")
         values.append(value)
-    wos_index = params.get("wos_index")
-    if wos_index not in (None, ""):
-        wos_index = str(wos_index)
-        if wos_index not in ("SCIE", "SSCI", "AHCI", "ESCI"):
+    wos_indexes = multi_values(params, "wos_index")
+    if wos_indexes:
+        if any(index not in ("SCIE", "SSCI", "AHCI", "ESCI") for index in wos_indexes):
             raise ValueError("wos_index 必须为 SCIE、SSCI、AHCI 或 ESCI")
-        clauses.append("EXISTS(SELECT 1 FROM json_each(c.wos_indexes) WHERE value=?)")
-        values.append(wos_index)
+        clauses.append(f"EXISTS(SELECT 1 FROM json_each(c.wos_indexes) WHERE value IN ({placeholders(wos_indexes)}))")
+        values.extend(wos_indexes)
     if params.get("subject"):
         clauses.append("EXISTS(SELECT 1 FROM json_each(c.subjects) WHERE value LIKE ? ESCAPE '\\')")
         values.append(like(str(params["subject"])))
-    broad_area = params.get("broad_area")
-    subcategory = params.get("subcategory")
-    if broad_area not in (None, "") or subcategory not in (None, ""):
+    broad_areas = multi_values(params, "broad_area")
+    subcategories = multi_values(params, "subcategory")
+    if broad_areas or subcategories:
         taxonomy = load_taxonomy()
         nodes = taxonomy["_nodes"]
-        if broad_area not in (None, ""):
-            broad_area = str(broad_area)
+        for broad_area in broad_areas:
             if broad_area not in nodes or nodes[broad_area].get("parent_id") is not None:
                 raise ValueError("broad_area 必须是已知的一级分类 ID")
-        if subcategory not in (None, ""):
-            subcategory = str(subcategory)
+        for subcategory in subcategories:
             if subcategory not in nodes or nodes[subcategory].get("parent_id") is None:
                 raise ValueError("subcategory 必须是已知的二级分类 ID")
-            if broad_area and nodes[subcategory].get("parent_id") != broad_area:
+            if broad_areas and nodes[subcategory].get("parent_id") not in broad_areas:
                 raise ValueError("subcategory 不属于所选 broad_area")
         clauses.append("EXISTS(SELECT 1 FROM json_each(c.taxonomy_paths) WHERE " +
-                       ("json_extract(value,'$.broad_id')=?" if broad_area else "1") +
-                       (" AND json_extract(value,'$.subcategory_id')=?" if subcategory else "") + ")")
-        if broad_area:
-            values.append(broad_area)
-        if subcategory:
-            values.append(subcategory)
+                       (f"json_extract(value,'$.broad_id') IN ({placeholders(broad_areas)})" if broad_areas else "1") +
+                       (f" AND json_extract(value,'$.subcategory_id') IN ({placeholders(subcategories)})" if subcategories else "") + ")")
+        values.extend(broad_areas)
+        values.extend(subcategories)
     if params.get("min_if") not in (None, ""):
         try:
             minimum = float(params["min_if"])

@@ -13,8 +13,10 @@ def main():
     build.add_argument("--source-dir", default=None)
     query = commands.add_parser("search", help="搜索刊名、ISSN 或学科")
     query.add_argument("q", nargs="?", default="")
+    multi_names = {"abdc", "ajg", "cas", "jcr-quartile", "sjr-quartile",
+                   "broad-area", "subcategory", "source-type", "wos-index"}
     for name in ("abdc", "ajg", "cas", "jcr-quartile", "sjr-quartile", "subject", "broad-area", "subcategory", "source-type", "wos-index", "min-if", "ft50", "utd24"):
-        query.add_argument("--" + name)
+        query.add_argument("--" + name, action="append" if name in multi_names else None)
     query.add_argument("--sort", default="title", choices=("title", "abdc", "ajg", "wos_indexes", "lists", "impact_factor", "jcr_quartile", "sjr", "cas_zone", "subcategory"))
     query.add_argument("--order", default="asc", choices=("asc", "desc"))
     query.add_argument("--limit", type=int, default=50)

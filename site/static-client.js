@@ -130,6 +130,14 @@
     if (value !== '0' && value !== '1') throw new Error(msg(`${name} must be 1 or 0.`, `${name} 只能是 1 或 0。`));
     return value === '1';
   }
+  function multiParameter(search, name) {
+    const values = [];
+    search.getAll(name).forEach(raw => String(raw).split(',').forEach(value => {
+      value = value.trim();
+      if (value && !values.includes(value)) values.push(value);
+    }));
+    return values;
+  }
   function filterAndSort(records, search, taxonomy) {
     if (String(search.get('q') || '').trim().length > 500) throw new Error(msg('Search is limited to 500 characters.', '查询词最多 500 字符'));
     const acronym = acronymKey(search.get('q'));
@@ -137,29 +145,30 @@
     const query = /^(?:[a-z][.\s-]+)+[a-z]\.?$/i.test(rawQuery) && acronym ? acronym : rawQuery;
     const q = queryTokens(query);
     const exact = [['abdc', 'abdc', new Set(['A*', 'A', 'B', 'C'])], ['ajg', 'ajg', new Set(['4*', '4', '3', '2', '1'])], ['cas', 'cas_zone', new Set(['1', '2', '3', '4'])], ['jcr_quartile', 'jcr_quartile', new Set(['Q1', 'Q2', 'Q3', 'Q4'])], ['sjr_quartile', 'sjr_quartile', new Set(['Q1', 'Q2', 'Q3', 'Q4'])], ['source_type', 'source_type', new Set(['journal', 'book series', 'conference and proceedings', 'trade journal'])]];
+    const selections = new Map(exact.map(([parameter, , allowed]) => [parameter, multiParameter(search, parameter)]));
     const minIF = nullableNumber(search.get('min_if'), msg('Minimum JIF', '最低 JIF'));
     const sort = search.get('sort') || 'title'; const order = String(search.get('order') || 'asc').toLowerCase();
     const ft50 = booleanParameter(search, 'ft50'), utd24 = booleanParameter(search, 'utd24');
-    const wosIndex = search.get('wos_index');
-    const broad = search.get('broad_area'), subcategory = search.get('subcategory');
+    const wosIndexes = multiParameter(search, 'wos_index');
+    const broads = multiParameter(search, 'broad_area'), subcategories = multiParameter(search, 'subcategory');
     const nodes = new Map((taxonomy?.nodes || []).map(node => [node.id, node]));
-    if (broad && (!nodes.has(broad) || nodes.get(broad).parent_id)) throw new Error(msg('Invalid broad area.', '学科大类参数无效。'));
-    if (subcategory && (!nodes.has(subcategory) || !nodes.get(subcategory).parent_id)) throw new Error(msg('Invalid subcategory.', '细分类参数无效。'));
-    if (broad && subcategory && nodes.get(subcategory).parent_id !== broad) throw new Error(msg('Subcategory does not belong to this broad area.', '细分类不属于所选大类。'));
-    if (wosIndex && !['SCIE', 'SSCI', 'AHCI', 'ESCI'].includes(wosIndex)) throw new Error(msg('Invalid WoS index.', 'WoS 索引参数无效。'));
+    if (broads.some(broad => !nodes.has(broad) || nodes.get(broad).parent_id)) throw new Error(msg('Invalid broad area.', '学科大类参数无效。'));
+    if (subcategories.some(subcategory => !nodes.has(subcategory) || !nodes.get(subcategory).parent_id)) throw new Error(msg('Invalid subcategory.', '细分类参数无效。'));
+    if (broads.length && subcategories.some(subcategory => !broads.includes(nodes.get(subcategory).parent_id))) throw new Error(msg('Subcategory does not belong to a selected broad area.', '细分类不属于所选大类。'));
+    if (wosIndexes.some(index => !['SCIE', 'SSCI', 'AHCI', 'ESCI'].includes(index))) throw new Error(msg('Invalid WoS index.', 'WoS 索引参数无效。'));
     if (!sortFields.includes(sort)) throw new Error(msg('Unsupported sort field.', '不支持的排序字段。'));
     if (!['asc', 'desc'].includes(order)) throw new Error(msg('Sort order must be asc or desc.', '排序方向必须为 asc 或 desc。'));
-    exact.forEach(([parameter, , allowed]) => { if (search.get(parameter) && !allowed.has(search.get(parameter))) throw new Error(msg(`Invalid ${parameter} parameter.`, `${parameter} 参数无效。`)); });
+    exact.forEach(([parameter, , allowed]) => { if (selections.get(parameter).some(value => !allowed.has(value))) throw new Error(msg(`Invalid ${parameter} parameter.`, `${parameter} 参数无效。`)); });
     const exactTitle = normalize(query);
     let matched = records.filter(record => {
       const text = normalize([record.title, ...(record.normalized_aliases || []), ...(record.issns || []), ...(record.subjects || []), record.search_text || ''].join(' '));
       const acronymMatch = !!acronym && (record.search_acronyms || []).includes(acronym);
       if (q.length && !acronymMatch && !q.every(token => /^[0-9X]{8}$/.test(token.toUpperCase()) ? (record.issns || []).some(issn => normalizedISSN(issn) === token.toUpperCase()) : text.includes(token))) return false;
-      if (exact.some(([parameter, field]) => search.get(parameter) && String(record[field] ?? '') !== search.get(parameter))) return false;
+      if (exact.some(([parameter, field]) => selections.get(parameter).length && !selections.get(parameter).includes(String(record[field] ?? '')))) return false;
       if (ft50 !== null && record.ft50 !== ft50) return false;
       if (utd24 !== null && record.utd24 !== utd24) return false;
-      if (wosIndex && !(record.wos_indexes || []).includes(wosIndex)) return false;
-      if ((broad || subcategory) && !(record.taxonomy_paths || []).some(path => (!broad || path.broad_id === broad) && (!subcategory || path.subcategory_id === subcategory))) return false;
+      if (wosIndexes.length && !(record.wos_indexes || []).some(index => wosIndexes.includes(index))) return false;
+      if ((broads.length || subcategories.length) && !(record.taxonomy_paths || []).some(path => (!broads.length || broads.includes(path.broad_id)) && (!subcategories.length || subcategories.includes(path.subcategory_id)))) return false;
       if (search.get('subject') && !normalize(record.subjects?.join(' ')).includes(normalize(search.get('subject')))) return false;
       return minIF === null || (record.impact_factor !== null && record.impact_factor !== undefined && Number(record.impact_factor) >= minIF);
     });

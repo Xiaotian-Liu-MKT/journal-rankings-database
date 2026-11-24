@@ -19,8 +19,8 @@ def run(url):
         page.wait_for_function("document.querySelector('#broad_area').options.length > 1")
         expect(page.locator("thead [data-sort]")).to_have_count(10)
         assert page.locator(".table-wrap").evaluate("node => node.scrollWidth <= node.clientWidth + 1")
-        page.locator("#broad_area").select_option("area-1400")
-        page.locator("#subcategory").select_option("asjc-1406")
+        page.locator("#broad_area").select_option("area-1400", force=True)
+        page.locator("#subcategory").select_option("asjc-1406", force=True)
         expect(page.locator("#export-link")).to_have_attribute("href", re.compile("subcategory=asjc-1406"))
         metadata = page.evaluate("async()=> (await (await fetch('/api/meta')).json())")
         labels = {node["id"]: node["label_en"] for node in metadata["taxonomy"]["nodes"]}
@@ -78,8 +78,8 @@ def run(url):
         assert not ({row["journal_id"] for row in first} & {row["journal_id"] for row in second})
         page.locator("#language").select_option("zh")
         expect(page.locator("#page-label")).to_contain_text("第 2 页")
-        expect(page.locator("#broad_area")).to_have_value("area-1400")
-        expect(page.locator("#subcategory")).to_have_value("asjc-1406")
+        expect(page.locator("#broad_area")).to_have_values(["area-1400"])
+        expect(page.locator("#subcategory")).to_have_values(["asjc-1406"])
         expect(page.locator('thead [data-sort="abdc"]').locator("xpath=..")).to_have_attribute("aria-sort", "descending")
         checks.append("sort, filters and stable pagination survive language changes")
 
