@@ -126,6 +126,7 @@ def run(url):
         reader = csv.DictReader(io.StringIO(csv_data.lstrip("\ufeff")))
         assert len(list(reader)) == 50
         assert {"journal_id", "abdc_year", "jcr_year", "quality_flags"} <= set(reader.fieldnames)
+        assert "search_acronyms" not in reader.fieldnames
         checks.append("full filtered CSV with provenance fields")
         page.set_viewport_size({"width": 390, "height": 844})
         assert page.evaluate("document.documentElement.scrollWidth<=window.innerWidth")

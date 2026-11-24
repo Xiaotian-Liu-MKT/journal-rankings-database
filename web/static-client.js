@@ -174,7 +174,7 @@
     event.preventDefault();
     try {
       const url = new URL(link.href, window.location.href); const all = filterAndSort(await catalogue(), url.searchParams); const m = await manifest();
-      const columns = (m.columns || []).filter(column => column !== 'search_text' && column !== 'normalized_aliases');
+      const columns = (m.columns || []).filter(column => !['search_text', 'normalized_aliases', 'search_acronyms'].includes(column));
       const output = [columns.join(','), ...all.map(row => columns.map(column => csvCell(row[column])).join(','))].join('\r\n');
       const blob = new Blob(['\ufeff', output], { type: 'text/csv;charset=utf-8' }); const download = document.createElement('a');
       download.href = URL.createObjectURL(blob); download.download = 'journal-index.csv'; document.body.append(download); download.click(); download.remove(); setTimeout(() => URL.revokeObjectURL(download.href), 1000);
