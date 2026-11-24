@@ -33,6 +33,8 @@ jobs:
           for attempt in $(seq 1 12); do
             artifact_id=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" --jq ".artifacts[] | select(.name == \"$PAGES_ARTIFACT\" and .expired == false) | .id")
             if [ -n "$artifact_id" ]; then
+              # deploy-pages reads Actions results metadata, which can lag the REST API.
+              sleep 15
               exit 0
             fi
             sleep 5
