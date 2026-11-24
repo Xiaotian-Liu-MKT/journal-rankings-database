@@ -65,6 +65,18 @@ def run(url):
         assert api({"subcategory": "unknown-category"})["status"] == 400
         checks.append("exact leaf filter, API/CLI parity, invalid IDs and mismatched branches")
 
+        tops = page.evaluate("""() => ['#broad_area','#subcategory','#source_type','#min_if','.checkgrid','#clear'].map(selector => document.querySelector(selector).getBoundingClientRect().top)""")
+        assert max(tops) - min(tops) <= 1, tops
+        first_row = page.locator("#rows tr").first
+        expect(first_row.locator(".taxonomy-name")).to_have_text("Marketing")
+        assert first_row.bounding_box()["height"] <= 95
+        assert first_row.locator(".taxonomy-summary").get_attribute("title").count("\n") >= 1
+        first_row.locator(".taxonomy-summary").click()
+        expect(page.locator("#classification-evidence")).to_contain_text("Marketing", timeout=30000)
+        expect(page.locator("#classification-evidence")).to_contain_text("Strategy and Management")
+        page.keyboard.press("Escape")
+        checks.append("aligned filter controls; compact matched category opens every classification")
+
         page.locator("#q").fill("ejm")
         expect(page.locator("#rows .journal-btn")).to_have_count(1)
         expect(page.locator("#rows .journal-btn")).to_have_text("EUROPEAN JOURNAL OF MARKETING")

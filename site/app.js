@@ -53,11 +53,27 @@
   const taxonomyPathText = path => path.subcategory_id
     ? `${taxonomyLabel(path.broad_id)} › ${taxonomyLabel(path.subcategory_id)}`
     : taxonomyLabel(path.broad_id);
-  const taxonomyPathNodes = paths => {
-    const wrap = node('div');
+  const taxonomyShortLabel = id => id === 'area-1400' ? tr('Business & Management', '商科与管理') : taxonomyLabel(id);
+  const taxonomySummary = record => {
+    const paths = record.taxonomy_paths;
     if (!paths?.length) return node('span', tr('No classification supplied', '本地来源未提供分类'), {class: 'na'});
-    paths.forEach(path => wrap.append(node('span', taxonomyPathText(path), {class: 'taxonomy-path'})));
-    return wrap;
+    // Show the active filter's match first, without declaring a primary discipline.
+    const selected = paths.find(path => state.applied.subcategory && path.subcategory_id === state.applied.subcategory)
+      || paths.find(path => state.applied.broad_area && path.broad_id === state.applied.broad_area) || paths[0];
+    const name = taxonomyLabel(selected.subcategory_id || selected.broad_id);
+    const button = node('button', undefined, {type: 'button', class: 'taxonomy-summary',
+      title: paths.map(taxonomyPathText).join('\n'),
+      'aria-label': tr(`View ${paths.length} classifications: ${name}`, `查看 ${paths.length} 项分类：${name}`)});
+    const primary = node('span', undefined, {class: 'taxonomy-primary'});
+    primary.append(node('span', name, {class: 'taxonomy-name'}));
+    if (paths.length > 1) primary.append(node('span', `+${paths.length - 1}`, {class: 'taxonomy-count'}));
+    button.append(primary);
+    if (selected.subcategory_id) button.append(node('span', taxonomyShortLabel(selected.broad_id), {class: 'taxonomy-context'}));
+    button.addEventListener('click', async () => {
+      await openDetail(record.journal_id);
+      if ($('#detail').open) $('#classification-evidence')?.scrollIntoView({block: 'start'});
+    });
+    return button;
   };
   function populateTaxonomyControls() {
     const broad = $('#broad_area'), leaf = $('#subcategory');
@@ -65,12 +81,14 @@
     const currentBroad = broad.value, currentLeaf = leaf.value;
     const nodes = taxonomy().nodes || [];
     const roots = nodes.filter(item => !item.parent_id);
-    broad.replaceChildren(node('option', tr('All broad areas', '全部大类'), {value: ''}), ...roots.map(item => node('option', taxonomyLabel(item.id), {value: item.id})));
+    broad.replaceChildren(node('option', tr('All broad areas', '全部大类'), {value: ''}), ...roots.map(item => node('option', taxonomyShortLabel(item.id), {value: item.id, title: taxonomyLabel(item.id)})));
     broad.value = roots.some(item => item.id === currentBroad) ? currentBroad : '';
     const children = nodes.filter(item => item.parent_id === broad.value);
     leaf.replaceChildren(node('option', tr('All subcategories', '全部子类'), {value: ''}), ...children.map(item => node('option', taxonomyLabel(item.id), {value: item.id})));
     leaf.disabled = !broad.value || !children.length;
     leaf.value = children.some(item => item.id === currentLeaf) ? currentLeaf : '';
+    broad.title = broad.value ? taxonomyLabel(broad.value) : tr('All broad areas', '全部大类');
+    leaf.title = leaf.value ? taxonomyLabel(leaf.value) : tr('All subcategories', '全部子类');
     $('#classification-heading').textContent = tr('Unified classification', '统一分类');
   }
   function sortIndicators() {
@@ -114,7 +132,7 @@
       row.append(title, cell(explain(badge(record.abdc), 'abdc', record.abdc)), cell(explain(badge(record.ajg), 'ajg', record.ajg)), cell(lists), cell(indexes),
         cell(explain(node('span', display(record.impact_factor), {class: 'num'}), 'jif', record.impact_factor)), cell(explain(badge(record.jcr_quartile), 'jcr', record.jcr_quartile)),
         cell(explain(node('span', sjr, {class: 'num'}), 'sjr', sjr)),
-        cell(explain(node('span', zone), 'cas', record.cas_zone == null ? null : `Q${record.cas_zone}`)), cell(taxonomyPathNodes(record.taxonomy_paths)));
+        cell(explain(node('span', zone), 'cas', record.cas_zone == null ? null : `Q${record.cas_zone}`)), cell(taxonomySummary(record)));
       body.append(row);
     }
     if (!data.results.length) messageRow(tr('No records match these filters.', '没有符合条件的记录。'));
@@ -338,7 +356,7 @@
     populateTaxonomyControls();
     load(true);
   });
-  $('#subcategory').addEventListener('change', () => load(true));
+  $('#subcategory').addEventListener('change', () => { populateTaxonomyControls(); load(true); });
   $('#clear').addEventListener('click', () => {
     document.querySelectorAll('[data-param]').forEach(control => {
       if (control.type === 'checkbox') control.checked = false;
