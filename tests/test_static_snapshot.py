@@ -17,12 +17,15 @@ class StaticSnapshotTests(unittest.TestCase):
         entities = {dict(zip(manifest["columns"], row))["journal_id"] for row in records}
         con = connect()
         try:
+            database_paths = {row["journal_id"]: json.loads(row["taxonomy_paths"]) for row in con.execute("SELECT journal_id,taxonomy_paths FROM catalogue")}
+            self.assertEqual(manifest["taxonomy"], meta(con)["taxonomy"])
             expected_acronyms = {}
             for row in con.execute("SELECT journal_id, title FROM aliases"):
                 expected_acronyms.setdefault(row["journal_id"], set()).update(title_acronyms(row["title"]))
             for row in records:
                 record = dict(zip(manifest["columns"], row))
                 self.assertEqual(set(record["search_acronyms"]), expected_acronyms[record["journal_id"]])
+                self.assertEqual(record["taxonomy_paths"], database_paths[record["journal_id"]])
             self.assertEqual(len(records), meta(con)["stats"]["journals"])
             self.assertEqual(manifest["built_at"], meta(con)["built_at"])
             ids, count = set(), 0

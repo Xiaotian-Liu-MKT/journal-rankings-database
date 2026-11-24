@@ -80,6 +80,8 @@ def serve(database=DEFAULT_DB, port=8765, open_browser=False):
                 elif parsed.path == "/api/meta":
                     self.respond(200, meta(con))
                 elif parsed.path == "/api/export.csv":
+                    from .classifications import taxonomy_definition
+                    nodes = {node["id"]: node for node in taxonomy_definition()["nodes"]}
                     where, values, order_sql = selection(params)
                     rows = con.execute("SELECT c.* FROM catalogue c" + where + order_sql, values)
                     stream = io.StringIO(newline="")
@@ -87,6 +89,8 @@ def serve(database=DEFAULT_DB, port=8765, open_browser=False):
                     for row in rows:
                         obj = decode(row)
                         obj.pop("search_text", None)
+                        paths = obj.pop("taxonomy_paths", [])
+                        obj["classification"] = "; ".join(" > ".join(nodes[node_id]["label_en"] for node_id in (path["broad_id"], path["subcategory_id"]) if node_id) for path in paths)
                         flat = {k: "; ".join(map(str, v)) if isinstance(v, list) else v for k, v in obj.items()}
                         # Avoid spreadsheet formula execution when source text begins with an operator.
                         flat = {k: "'" + v if isinstance(v, str) and v.startswith(("=", "+", "-", "@")) else v for k, v in flat.items()}

@@ -7,6 +7,7 @@ from pathlib import Path
 from . import DEFAULT_DB
 from .build import norm
 from .acronyms import acronym_key, matches_acronym, search_text
+from .classifications import load_taxonomy, taxonomy_metadata
 
 
 NOTES = [
@@ -33,7 +34,7 @@ def connect(path=DEFAULT_DB):
 
 def decode(row):
     result = dict(row)
-    for key in ("issns", "wos_indexes", "languages", "subjects", "quality_flags"):
+    for key in ("issns", "wos_indexes", "languages", "taxonomy_paths", "subjects", "quality_flags"):
         if key in result:
             result[key] = json.loads(result[key])
     for key in ("ft50", "utd24", "cas_top"):
@@ -97,6 +98,28 @@ def filters(params):
     if params.get("subject"):
         clauses.append("EXISTS(SELECT 1 FROM json_each(c.subjects) WHERE value LIKE ? ESCAPE '\\')")
         values.append(like(str(params["subject"])))
+    broad_area = params.get("broad_area")
+    subcategory = params.get("subcategory")
+    if broad_area not in (None, "") or subcategory not in (None, ""):
+        taxonomy = load_taxonomy()
+        nodes = taxonomy["_nodes"]
+        if broad_area not in (None, ""):
+            broad_area = str(broad_area)
+            if broad_area not in nodes or nodes[broad_area].get("parent_id") is not None:
+                raise ValueError("broad_area 必须是已知的一级分类 ID")
+        if subcategory not in (None, ""):
+            subcategory = str(subcategory)
+            if subcategory not in nodes or nodes[subcategory].get("parent_id") is None:
+                raise ValueError("subcategory 必须是已知的二级分类 ID")
+            if broad_area and nodes[subcategory].get("parent_id") != broad_area:
+                raise ValueError("subcategory 不属于所选 broad_area")
+        clauses.append("EXISTS(SELECT 1 FROM json_each(c.taxonomy_paths) WHERE " +
+                       ("json_extract(value,'$.broad_id')=?" if broad_area else "1") +
+                       (" AND json_extract(value,'$.subcategory_id')=?" if subcategory else "") + ")")
+        if broad_area:
+            values.append(broad_area)
+        if subcategory:
+            values.append(subcategory)
     if params.get("min_if") not in (None, ""):
         try:
             minimum = float(params["min_if"])
@@ -178,5 +201,5 @@ def meta(con):
              "utd24": con.execute("SELECT sum(utd24) FROM catalogue").fetchone()[0],
              "wos_index_counts": {index: con.execute("SELECT count(*) FROM catalogue WHERE EXISTS(SELECT 1 FROM json_each(wos_indexes) WHERE value=?)", (index,)).fetchone()[0]
                                   for index in ("SCIE", "SSCI", "AHCI", "ESCI")}}
-    return {"stats": stats, "sources": [dict(r) for r in con.execute("SELECT * FROM sources ORDER BY system,metric_year DESC")],
+    return {"stats": stats, "taxonomy": taxonomy_metadata(), "sources": [dict(r) for r in con.execute("SELECT * FROM sources ORDER BY system,metric_year DESC")],
             "notes": NOTES, "built_at": con.execute("SELECT value FROM metadata WHERE key='built_at'").fetchone()[0]}

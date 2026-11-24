@@ -55,7 +55,9 @@
     if (!cache.details.has(shard)) {
       cache.details.set(shard, (async () => {
         const m = await manifest(); progress(msg('Loading sources and history…', '正在读取来源与历史记录…'));
-        return gzipJSON(new URL(`${m.detail_base}${shard}.json.gz`, assetsURL));
+        const detailURL = new URL(`${m.detail_base}${shard}.json.gz`, assetsURL);
+        if (m.built_at) detailURL.searchParams.set('v', m.built_at);
+        return gzipJSON(detailURL);
       })());
     }
     return (await cache.details.get(shard))[id] || null;
@@ -100,7 +102,7 @@
     if (value !== '0' && value !== '1') throw new Error(msg(`${name} must be 1 or 0.`, `${name} 只能是 1 或 0。`));
     return value === '1';
   }
-  function filterAndSort(records, search) {
+  function filterAndSort(records, search, taxonomy) {
     if (String(search.get('q') || '').trim().length > 500) throw new Error(msg('Search is limited to 500 characters.', '查询词最多 500 字符'));
     const acronym = acronymKey(search.get('q'));
     const rawQuery = String(search.get('q') || '').trim();
@@ -111,6 +113,11 @@
     const sort = search.get('sort') || 'title'; const order = search.get('order') || 'asc';
     const ft50 = booleanParameter(search, 'ft50'), utd24 = booleanParameter(search, 'utd24');
     const wosIndex = search.get('wos_index');
+    const broad = search.get('broad_area'), subcategory = search.get('subcategory');
+    const nodes = new Map((taxonomy?.nodes || []).map(node => [node.id, node]));
+    if (broad && (!nodes.has(broad) || nodes.get(broad).parent_id)) throw new Error(msg('Invalid broad area.', '学科大类参数无效。'));
+    if (subcategory && (!nodes.has(subcategory) || !nodes.get(subcategory).parent_id)) throw new Error(msg('Invalid subcategory.', '细分类参数无效。'));
+    if (broad && subcategory && nodes.get(subcategory).parent_id !== broad) throw new Error(msg('Subcategory does not belong to this broad area.', '细分类不属于所选大类。'));
     if (wosIndex && !['SCIE', 'SSCI', 'AHCI', 'ESCI'].includes(wosIndex)) throw new Error(msg('Invalid WoS index.', 'WoS 索引参数无效。'));
     if (!['title', 'impact_factor', 'sjr'].includes(sort)) throw new Error(msg('Unsupported sort field.', '不支持的排序字段。'));
     if (!['asc', 'desc'].includes(order)) throw new Error(msg('Sort order must be asc or desc.', '排序方向必须为 asc 或 desc。'));
@@ -124,6 +131,7 @@
       if (ft50 !== null && record.ft50 !== ft50) return false;
       if (utd24 !== null && record.utd24 !== utd24) return false;
       if (wosIndex && !(record.wos_indexes || []).includes(wosIndex)) return false;
+      if ((broad || subcategory) && !(record.taxonomy_paths || []).some(path => (!broad || path.broad_id === broad) && (!subcategory || path.subcategory_id === subcategory))) return false;
       if (search.get('subject') && !normalize(record.subjects?.join(' ')).includes(normalize(search.get('subject')))) return false;
       return minIF === null || (record.impact_factor !== null && record.impact_factor !== undefined && Number(record.impact_factor) >= minIF);
     });
@@ -135,7 +143,7 @@
     const path = url.pathname.replace(/\/+$/, '');
     if (path.endsWith('/api/meta')) {
       const m = await manifest();
-      return jsonResponse({ stats: m.stats || {}, sources: m.sources || [], notes: m.notes || [] });
+      return jsonResponse({ stats: m.stats || {}, sources: m.sources || [], notes: m.notes || [], taxonomy: m.taxonomy });
     }
     const detail = path.match(/\/api\/journals\/([^/]+)$/);
     if (detail) {
@@ -145,7 +153,7 @@
     if (path.endsWith('/api/journals')) {
       try {
         const records = await catalogue(); ensureNotAborted(signal);
-        const all = filterAndSort(records, url.searchParams); const limit = Number(url.searchParams.get('limit') || 50); const offset = Number(url.searchParams.get('offset') || 0);
+        const all = filterAndSort(records, url.searchParams, (await manifest()).taxonomy); const limit = Number(url.searchParams.get('limit') || 50); const offset = Number(url.searchParams.get('offset') || 0);
         if (!Number.isInteger(limit) || limit < 1 || limit > 500 || !Number.isInteger(offset) || offset < 0) throw new Error(msg('Invalid pagination parameters.', '分页参数无效。'));
         return jsonResponse({ results: all.slice(offset, offset + limit), total: all.length, limit, offset });
       } catch (error) { return errorResponse(error.message); }
@@ -173,9 +181,12 @@
     if (!link || link.getAttribute('aria-disabled') === 'true') return;
     event.preventDefault();
     try {
-      const url = new URL(link.href, window.location.href); const all = filterAndSort(await catalogue(), url.searchParams); const m = await manifest();
-      const columns = (m.columns || []).filter(column => !['search_text', 'normalized_aliases', 'search_acronyms'].includes(column));
-      const output = [columns.join(','), ...all.map(row => columns.map(column => csvCell(row[column])).join(','))].join('\r\n');
+      const url = new URL(link.href, window.location.href); const m = await manifest();
+      const all = filterAndSort(await catalogue(), url.searchParams, m.taxonomy);
+      const nodes = new Map((m.taxonomy?.nodes || []).map(node => [node.id, node]));
+      const pathText = path => [nodes.get(path.broad_id)?.label_en, nodes.get(path.subcategory_id)?.label_en].filter(Boolean).join(' > ');
+      const columns = (m.columns || []).filter(column => !['search_text', 'normalized_aliases', 'search_acronyms', 'taxonomy_paths'].includes(column)).concat('classification');
+      const output = [columns.join(','), ...all.map(row => columns.map(column => csvCell(column === 'classification' ? (row.taxonomy_paths || []).map(pathText).join('; ') : row[column])).join(','))].join('\r\n');
       const blob = new Blob(['\ufeff', output], { type: 'text/csv;charset=utf-8' }); const download = document.createElement('a');
       download.href = URL.createObjectURL(blob); download.download = 'journal-index.csv'; document.body.append(download); download.click(); download.remove(); setTimeout(() => URL.revokeObjectURL(download.href), 1000);
     } catch (error) { progress(msg(`Export failed: ${error.message || 'Could not read the data.'}`, `导出失败：${error.message || '静态数据读取失败'}`)); }

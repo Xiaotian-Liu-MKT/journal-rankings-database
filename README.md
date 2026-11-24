@@ -74,7 +74,11 @@ SQLite 位于 `data/journals.sqlite`。不启动网页也能直接用 Python `sq
 
 两份 JCR 文件字节完全相同，只导入一次，在 `sources.duplicate_of` 中保留另一文件的关联。ABDC 一个工作表对应一个来源版本，因此来源版本数大于文件数。
 
-JCR 与 SJR 的概览分区均为各自的最佳分区，不可互换；JCR 的各个学科及名次保存在详情 `metrics.categories`。学科关键词搜索综合不同来源的学科标签，不能据此把最佳分区归给指定学科。
+网页学科筛选使用统一的“大类 → 细分类”。以 Scopus ASJC 层级为骨架，融合当前 SJR、AJG、ABDC FoR 与 JCR/WoS 分类；Marketing、MKT 等相容标签合并，宽泛 Business 作为上级依据，跨学科分支保留。映射为本项目维护的 `journaldb/taxonomy_data.json`，不是官方跨体系对照表。只知道大类时不会猜细分类；未提供分类时保留缺失。来源、版次与直接/上级分类证据可在详情追溯，旧混合标签折叠为辅助信息。
+
+CLI/API 使用 `--broad-area area-1400 --subcategory asjc-1406` / `broad_area=area-1400&subcategory=asjc-1406` 查询市场营销。可选节点见 `meta.taxonomy.nodes`，父子参数须在同一分支。旧 `--subject` 兼容混合标签关键词查询。
+
+JCR 与 SJR 的概览分区均为各自的最佳分区，不可互换；JCR 的各个学科及名次保存在详情 `metrics.categories`。统一学科与最佳分区分别保留，不能据此把最佳分区归给指定学科。
 
 中科院原表没有学科或大类/小类字段，保存为“源表分区”，不做推断。SCImago 包含非期刊类型，默认全部保留；只查 SJR 标注的期刊可筛选 `source_type=journal`。该类型字段仅来自 SJR，使用类型筛选会排除没有 SJR 类型数据的条目。
 

@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import ROOT, DEFAULT_DB
+from .classifications import current_taxonomy_paths
 
 
 def text(value):
@@ -350,6 +351,7 @@ def summarize(jid, group):
               "country": unique("SJR", "country"), "source_type": unique("SJR", "source_type"),
               "wos_indexes": dumps([system for system in WOS_INDEXES if wos_current[system]]),
               "languages": dumps(sorted({language for values in wos_current.values() for metrics in values for language in metrics.get("languages", [])})),
+              "taxonomy_paths": dumps(current_taxonomy_paths(current, wos_current)),
               "subjects": dumps(sorted(subjects))}
     if not result["publisher"]:
         wos_publishers = {metrics["publisher"] for values in wos_current.values() for metrics in values if metrics.get("publisher")}
@@ -373,7 +375,7 @@ def export(database):
             obj = decode(row)
             obj.pop("search_text", None)
             jf.write(dumps(obj) + "\n")
-            flat = {k: "; ".join(map(str, v)) if isinstance(v, list) else v for k, v in obj.items()}
+            flat = {k: (dumps(v) if isinstance(v, (list, dict)) else v) for k, v in obj.items()}
             if writer is None:
                 writer = csv.DictWriter(cf, fieldnames=list(flat))
                 writer.writeheader()

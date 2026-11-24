@@ -34,6 +34,7 @@ CREATE TABLE catalogue (
  jcr_quartile TEXT, jcr_year INTEGER, sjr REAL, sjr_quartile TEXT, sjr_year INTEGER,
  ft50 INTEGER NOT NULL, utd24 INTEGER NOT NULL, publisher TEXT, country TEXT,
  source_type TEXT, wos_indexes TEXT NOT NULL, languages TEXT NOT NULL,
+ taxonomy_paths TEXT NOT NULL CHECK(json_valid(taxonomy_paths)),
  subjects TEXT NOT NULL, search_text TEXT NOT NULL,
  quality_flags TEXT NOT NULL
 );

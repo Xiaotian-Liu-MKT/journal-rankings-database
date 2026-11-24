@@ -43,6 +43,36 @@
     td.append(content instanceof Node ? content : document.createTextNode(display(content)));
     return td;
   };
+  const taxonomy = () => state.metadata?.taxonomy || {nodes: [], sources: []};
+  const taxonomyNodes = () => new Map((taxonomy().nodes || []).map(item => [item.id, item]));
+  const taxonomyLabel = id => {
+    const item = taxonomyNodes().get(id);
+    if (!item) return display(id);
+    return window.JournalI18n?.locale === 'zh' ? item.label_zh || item.label_en : item.label_en || item.label_zh;
+  };
+  const taxonomyPathText = path => path.subcategory_id
+    ? `${taxonomyLabel(path.broad_id)} › ${taxonomyLabel(path.subcategory_id)}`
+    : taxonomyLabel(path.broad_id);
+  const taxonomyPathNodes = paths => {
+    const wrap = node('div');
+    if (!paths?.length) return node('span', tr('No classification supplied', '本地来源未提供分类'), {class: 'na'});
+    paths.forEach(path => wrap.append(node('span', taxonomyPathText(path), {class: 'taxonomy-path'})));
+    return wrap;
+  };
+  function populateTaxonomyControls() {
+    const broad = $('#broad_area'), leaf = $('#subcategory');
+    if (!broad || !leaf || !state.metadata?.taxonomy) return;
+    const currentBroad = broad.value, currentLeaf = leaf.value;
+    const nodes = taxonomy().nodes || [];
+    const roots = nodes.filter(item => !item.parent_id);
+    broad.replaceChildren(node('option', tr('All broad areas', '全部大类'), {value: ''}), ...roots.map(item => node('option', taxonomyLabel(item.id), {value: item.id})));
+    broad.value = roots.some(item => item.id === currentBroad) ? currentBroad : '';
+    const children = nodes.filter(item => item.parent_id === broad.value);
+    leaf.replaceChildren(node('option', tr('All subcategories', '全部子类'), {value: ''}), ...children.map(item => node('option', taxonomyLabel(item.id), {value: item.id})));
+    leaf.disabled = !broad.value || !children.length;
+    leaf.value = children.some(item => item.id === currentLeaf) ? currentLeaf : '';
+    $('#classification-heading').textContent = tr('Unified classification', '统一分类');
+  }
   function sortIndicators() {
     document.querySelectorAll('th [data-sort]').forEach(button => {
       const active = button.dataset.sort === state.sort;
@@ -79,13 +109,12 @@
       const indexes = node('div', undefined, {class: 'badges'});
       (record.wos_indexes || []).forEach(index => indexes.append(explain(badge(index), index, index)));
       if (!indexes.childNodes.length) indexes.append(node('span', '—', {class: 'na'}));
-      const subjects = record.subjects?.join(tr('; ', '；')) || '—';
       const zone = record.cas_zone == null ? '—' : `Q${record.cas_zone}` + (record.cas_top ? ' · Top' : '');
       const sjr = display(record.sjr) + (record.sjr_quartile ? ' · ' + record.sjr_quartile : '');
       row.append(title, cell(explain(badge(record.abdc), 'abdc', record.abdc)), cell(explain(badge(record.ajg), 'ajg', record.ajg)), cell(lists), cell(indexes),
         cell(explain(node('span', display(record.impact_factor), {class: 'num'}), 'jif', record.impact_factor)), cell(explain(badge(record.jcr_quartile), 'jcr', record.jcr_quartile)),
         cell(explain(node('span', sjr, {class: 'num'}), 'sjr', sjr)),
-        cell(explain(node('span', zone), 'cas', record.cas_zone == null ? null : `Q${record.cas_zone}`)), cell(node('span', subjects, {class: 'subjects', title: subjects})));
+        cell(explain(node('span', zone), 'cas', record.cas_zone == null ? null : `Q${record.cas_zone}`)), cell(taxonomyPathNodes(record.taxonomy_paths)));
       body.append(row);
     }
     if (!data.results.length) messageRow(tr('No records match these filters.', '没有符合条件的记录。'));
@@ -169,6 +198,42 @@
       profile.append(item);
     }
     body.replaceChildren(profile);
+    const classification = node('section', undefined, {class: 'taxonomy-evidence', id: 'classification-evidence'});
+    classification.append(node('h3', tr('Unified classification', '统一分类')),
+      node('p', tr('Unified from source classifications; finer compatible categories are retained.', '由来源分类归并；可兼容的细分类会保留。')));
+    if (journal.taxonomy_paths?.length) {
+      const sources = new Map((taxonomy().sources || []).map(source => [source.name, source.url]));
+      for (const path of journal.taxonomy_paths) {
+        const item = node('p');
+        item.append(node('strong', taxonomyPathText(path)));
+        const evidence = (path.evidence || []).map(entry => {
+          const relation = entry.relation === 'broader' ? tr('broader category', '上级分类依据') : tr('direct category', '直接分类依据');
+          const source = sources.get(entry.system);
+          const text = `${entry.system} ${entry.edition || ''}: ${entry.value || entry.field || ''} (${relation})`.trim();
+          return source ? node('a', text, {href: source, target: '_blank', rel: 'noreferrer'}) : node('code', text);
+        });
+        if (evidence.length) item.append(document.createTextNode(' · '), ...evidence.flatMap((entry, index) => index ? [document.createTextNode(' · '), entry] : [entry]));
+        classification.append(item);
+      }
+    } else classification.append(node('p', tr('No classification supplied by the local sources.', '本地来源未提供分类。')));
+    const method = node('details', undefined, {class: 'taxonomy-method'});
+    method.append(node('summary', tr('Classification method and references', '归并方法与参考依据')),
+      node('p', tr('Project-maintained crosswalk using ASJC as the backbone, with compatible finer source categories. Broader evidence does not imply a finer classification. This is not an official crosswalk between rating systems.', '本项目以 ASJC 为层级骨架，融合来源中相容的细分类。上级分类依据不代表来源也给出了细分类；这不是评级机构发布的官方跨体系对照表。')));
+    const references = node('ul');
+    (taxonomy().sources || []).forEach(source => {
+      const item = node('li');
+      item.append(node('a', source.name, {href: source.url, target: '_blank', rel: 'noreferrer'}));
+      references.append(item);
+    });
+    method.append(references);
+    classification.append(method);
+    body.append(classification);
+    const legacy = [...new Map((journal.subjects || []).map(value => [String(value).toLocaleLowerCase(), value])).values()];
+    if (legacy.length) {
+      const auxiliary = node('details', undefined, {class: 'taxonomy-legacy', id: 'legacy-subjects'});
+      auxiliary.append(node('summary', tr('Legacy mixed source labels', '旧版混合来源标签（辅助）')), node('p', legacy.join(tr('; ', '；'))));
+      body.append(auxiliary);
+    }
     if (data.aliases.length) body.append(node('p', tr('Source titles: ', '来源刊名：') + data.aliases.join(tr('; ', '；')), {class: 'source-note'}));
     const history = node('section', undefined, {class: 'history'});
     history.append(node('h3', tr('Sources and history', '来源与历史版本')));
@@ -240,6 +305,8 @@
     $('#notes').replaceChildren(items);
     $('#source-list').replaceChildren(...data.sources.filter(source => !source.duplicate_of).map(source =>
       node('li', `${source.system} ${source.edition} · ${source.filename} · ` + tr(`${source.row_count.toLocaleString()} records`, `${source.row_count.toLocaleString()} 条`))));
+    populateTaxonomyControls();
+    if (state.status === 'ready' && state.lastData) render(state.lastData);
   }
   async function metadata() {
     try {
@@ -252,7 +319,7 @@
   // Put the primary action before optional filters in both visual and keyboard order.
   $('.workbench').prepend($('#searchform'));
   $('#searchform').addEventListener('submit', event => { event.preventDefault(); load(true); });
-  document.querySelectorAll('[data-param]:not(#sort)').forEach(control => {
+  document.querySelectorAll('[data-param]:not(#sort):not(#broad_area):not(#subcategory)').forEach(control => {
     if (control.matches('select,input[type="checkbox"]')) {
       control.addEventListener('change', () => load(true));
     } else {
@@ -266,11 +333,18 @@
       });
     }
   });
+  $('#broad_area').addEventListener('change', () => {
+    $('#subcategory').value = '';
+    populateTaxonomyControls();
+    load(true);
+  });
+  $('#subcategory').addEventListener('change', () => load(true));
   $('#clear').addEventListener('click', () => {
     document.querySelectorAll('[data-param]').forEach(control => {
       if (control.type === 'checkbox') control.checked = false;
       else control.value = control.id === 'sort' ? 'title' : '';
     });
+    populateTaxonomyControls();
     state.sort = 'title'; state.order = 'asc'; load(true);
   });
   document.querySelectorAll('th [data-sort]').forEach(button => button.addEventListener('click', () => {
@@ -291,6 +365,7 @@
     else if (state.status === 'error') renderError();
     else messageRow(tr('Loading results…', '正在加载结果…'));
     renderMetadata();
+    populateTaxonomyControls();
     if ($('#detail').open && state.detailData) renderDetail(state.detailData);
   });
   metadata();

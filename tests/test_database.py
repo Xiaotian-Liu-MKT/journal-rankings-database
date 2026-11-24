@@ -8,6 +8,7 @@ from journaldb import ROOT, DEFAULT_DB
 from journaldb.build import issn, norm
 from journaldb.query import connect, detail, filters, meta, search
 from journaldb.acronyms import acronym_key, title_acronyms
+from journaldb.classifications import current_taxonomy_paths, load_taxonomy
 
 
 class DatabaseTests(unittest.TestCase):
@@ -16,6 +17,65 @@ class DatabaseTests(unittest.TestCase):
 
     def tearDown(self):
         self.con.close()
+
+    def test_unified_taxonomy_path_algorithm(self):
+        data = {"nodes": [
+            {"id": "area-business", "parent_id": None, "label_en": "Business", "label_zh": "商业"},
+            {"id": "asjc-marketing", "parent_id": "area-business", "label_en": "Marketing", "label_zh": "市场营销"},
+            {"id": "ajg-marketing", "parent_id": "area-business", "label_en": "Marketing (AJG)", "label_zh": "市场营销（AJG）", "refines": ["asjc-marketing"]},
+            {"id": "wos-business", "parent_id": "area-business", "label_en": "Business", "label_zh": "商业"}],
+            "mappings": {"SJR": {"Marketing": ["asjc-marketing"]}, "AJG": {"MKT": ["ajg-marketing"]}, "ABDC": {"3506": ["ajg-marketing"]}, "WOS": {"BUSINESS": ["area-business"]}}}
+        data["_nodes"] = {node["id"]: node for node in data["nodes"]}
+        data["_normalized_mappings"] = {system: {" ".join(raw.casefold().split()): ids for raw, ids in mapping.items()}
+                                        for system, mapping in data["mappings"].items()}
+        paths = current_taxonomy_paths({"SJR": [{"areas": ["Business"], "categories": ["Marketing (Q1)"]}],
+                                        "AJG": [{"field": "MKT"}], "ABDC": [{"field": "3506"}]}, {}, data)
+        self.assertEqual(paths, [{"broad_id": "area-business", "subcategory_id": "ajg-marketing", "evidence": [
+            {"system": "AJG", "edition": "2024", "field": "field", "value": "MKT", "relation": "direct"},
+            {"system": "ABDC", "edition": "2025", "field": "field", "value": "3506", "relation": "direct"},
+            {"system": "SJR", "edition": "2025", "field": "category", "value": "Marketing", "relation": "broader"},
+            {"system": "SJR", "edition": "2025", "field": "area", "value": "Business", "relation": "broader"}]}])
+        paths = current_taxonomy_paths({"JCR": [{"categories": [{"category": "BUSINESS"}]}]}, {}, data)
+        self.assertIsNone(paths[0]["subcategory_id"])
+        self.assertEqual(paths[0]["evidence"][0]["system"], "JCR")
+
+    def test_unified_taxonomy_keeps_broad_evidence_for_each_finer_branch(self):
+        data = {"nodes": [
+            {"id": "area", "parent_id": None, "label_en": "Area", "label_zh": "领域"},
+            {"id": "broad", "parent_id": "area", "label_en": "Broad", "label_zh": "宽泛"},
+            {"id": "fine-a", "parent_id": "area", "label_en": "Fine A", "label_zh": "细分 A", "refines": ["broad"]},
+            {"id": "fine-b", "parent_id": "area", "label_en": "Fine B", "label_zh": "细分 B", "refines": ["broad"]}],
+            "mappings": {"SJR": {"Broad": ["broad"]}, "AJG": {"A": ["fine-a"], "B": ["fine-b"]}, "WOS": {}}}
+        data["_nodes"] = {node["id"]: node for node in data["nodes"]}
+        data["_normalized_mappings"] = {system: {" ".join(raw.casefold().split()): ids for raw, ids in mapping.items()}
+                                        for system, mapping in data["mappings"].items()}
+        paths = current_taxonomy_paths({"SJR": [{"areas": [], "categories": ["Broad (Q1)"]}],
+                                        "AJG": [{"field": "A"}, {"field": "B"}]}, {}, data)
+        self.assertEqual({path["subcategory_id"] for path in paths}, {"fine-a", "fine-b"})
+        for path in paths:
+            self.assertIn({"system": "SJR", "edition": "2025", "field": "category", "value": "Broad", "relation": "broader"}, path["evidence"])
+
+    def test_unified_taxonomy_filters_after_rebuild(self):
+        # The checked-in working database may predate the taxonomy schema;
+        # this becomes an integration assertion immediately after a rebuild.
+        if not (ROOT / "journaldb" / "taxonomy_data.json").is_file() or "taxonomy_paths" not in {r[1] for r in self.con.execute("PRAGMA table_info(catalogue)")}:
+            self.skipTest("requires rebuilt taxonomy catalogue")
+        taxonomy = load_taxonomy()
+        marketing = taxonomy["mappings"].get("AJG", {}).get("MKT", [])
+        self.assertTrue(marketing)
+        leaf = marketing[0]
+        broad = taxonomy["_nodes"][leaf]["parent_id"]
+        results = search(self.con, broad_area=broad, subcategory=leaf, limit=500)
+        self.assertGreater(results["total"], 0)
+        for record in results["results"]:
+            self.assertTrue(any(path["broad_id"] == broad and path["subcategory_id"] == leaf for path in record["taxonomy_paths"]))
+        with self.assertRaises(ValueError):
+            search(self.con, broad_area=leaf)
+        with self.assertRaises(ValueError):
+            search(self.con, subcategory="missing-node")
+        wrong_broad = next(node["id"] for node in taxonomy["nodes"] if node.get("parent_id") is None and node["id"] != broad)
+        with self.assertRaises(ValueError):
+            search(self.con, broad_area=wrong_broad, subcategory=leaf)
 
     def test_acronym_search_and_ambiguity(self):
         expected = {"ejm": "EUROPEAN JOURNAL OF MARKETING",
