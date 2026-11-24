@@ -7,6 +7,7 @@ from pathlib import Path
 
 from . import ROOT, DEFAULT_DB
 from .build import dumps
+from .acronyms import title_acronyms
 from .query import connect, decode, meta
 
 
@@ -25,19 +26,22 @@ def export_site(database=DEFAULT_DB, destination=None):
         metadata = meta(con)
         aliases = defaultdict(list)
         normalized = defaultdict(set)
+        acronyms = defaultdict(set)
         for row in con.execute("SELECT * FROM aliases ORDER BY title"):
             aliases[row["journal_id"]].append(row["title"])
             normalized[row["journal_id"]].add(row["normalized_title"])
+            acronyms[row["journal_id"]].update(title_acronyms(row["title"]))
         entities = {}
         columns, rows = None, []
         for row in con.execute("SELECT * FROM catalogue ORDER BY title COLLATE NOCASE,journal_id"):
             obj = decode(row)
             jid = obj["journal_id"]
             obj["normalized_aliases"] = sorted(normalized[jid])
+            obj["search_acronyms"] = sorted(acronyms[jid])
             if columns is None:
                 columns = list(obj)
             rows.append([obj[k] for k in columns])
-            entities[jid] = {k: v for k, v in obj.items() if k not in ("search_text", "normalized_aliases")}
+            entities[jid] = {k: v for k, v in obj.items() if k not in ("search_text", "normalized_aliases", "search_acronyms")}
         write_gzip(assets / "catalogue.json.gz", rows)
         shards = {f"{i:02x}": {} for i in range(256)}
         for jid, journal in entities.items():
@@ -54,7 +58,8 @@ def export_site(database=DEFAULT_DB, destination=None):
             shards[jid[2:4]][jid]["observations"].append(obs)
         for shard, content in shards.items():
             write_gzip(details_dir / f"{shard}.json.gz", content)
-        metadata.update({"columns": columns, "catalogue": "catalogue.json.gz", "detail_base": "details/", "detail_encoding": "gzip", "snapshot_version": 1})
+        catalogue_hash = hashlib.sha256((assets / "catalogue.json.gz").read_bytes()).hexdigest()[:12]
+        metadata.update({"columns": columns, "catalogue": "catalogue.json.gz", "catalogue_sha256": catalogue_hash, "detail_base": "details/", "detail_encoding": "gzip", "snapshot_version": 1})
         (assets / "manifest.json").write_text(dumps(metadata), encoding="utf-8")
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         html = html.replace("<head>", "<head>\n  <script>window.JOURNAL_STATIC=true;</script>", 1)
@@ -82,6 +87,7 @@ def export_site(database=DEFAULT_DB, destination=None):
 - `assets/catalogue.json.gz`：gzip JSON 二维数组，按 manifest.columns 映射为对象。
 - `assets/details/{前两位ID}.json.gz`：完整详情分片。ID 为 j_abc... 时分片为 ab。
 - 浏览器界面提供组合查询与 CSV 下载。静态站不提供 /api/journals HTTP 服务。
+- 支持刊名首字母缩写（如 ejm），忽略大小写及连接词；缩写重名时保留全部候选。search_acronyms 为派生检索值，不是官方别名。
 
 Python 读取当前站点数据（BASE 替换为该页面所在目录的 HTTPS 地址）：
 

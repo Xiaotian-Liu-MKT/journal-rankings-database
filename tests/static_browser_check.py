@@ -1,8 +1,12 @@
 """Acceptance checks against a static HTTP host, including GitHub Pages."""
 import argparse
 import json
+import sys
+from pathlib import Path
 
 from playwright.sync_api import sync_playwright, expect
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 def run(url):
@@ -25,6 +29,31 @@ def run(url):
               const response = await fetch('/api/journals?' + new URLSearchParams(params));
               return {status:response.status,body:await response.json()};
             }""", params)
+
+        from journaldb.query import connect, search
+        con = connect()
+        try:
+            for query, title in (("ejm", "EUROPEAN JOURNAL OF MARKETING"),
+                                 ("EJM", "EUROPEAN JOURNAL OF MARKETING"),
+                                 ("E.J.M.", "EUROPEAN JOURNAL OF MARKETING"),
+                                 ("e j m", "EUROPEAN JOURNAL OF MARKETING"),
+                                 ("jcr", "JOURNAL OF CONSUMER RESEARCH"),
+                                 ("jmr", "JOURNAL OF MARKETING RESEARCH")):
+                params = {"q": query, "limit": "500"}
+                result = api(params)["body"]
+                local = search(con, **params)
+                assert title in {row["title"] for row in result["results"]}, query
+                assert {row["journal_id"] for row in result["results"]} == {row["journal_id"] for row in local["results"]}, query
+                assert result["total"] == local["total"], query
+            filtered = api({"q": "ejm", "abdc": "A*"})["body"]
+            assert "EUROPEAN JOURNAL OF MARKETING" in {row["title"] for row in filtered["results"]}
+            assert all(row["abdc"] == "A*" for row in filtered["results"])
+            page.locator("#q").fill("ejm")
+            expect(page.locator("#rows .journal-btn").filter(has_text="EUROPEAN JOURNAL OF MARKETING")).to_be_visible()
+            assert api({"q": "ejm"})["body"]["total"] > 1
+            checks.append("acronym search, live EJM input, ambiguity, filters and CLI parity")
+        finally:
+            con.close()
 
         page.locator("#q").fill("Journal of Consumer Research")
         page.locator("#searchform button[type=submit]").click()

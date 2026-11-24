@@ -7,6 +7,7 @@ from pathlib import Path
 from journaldb import ROOT, DEFAULT_DB
 from journaldb.build import issn, norm
 from journaldb.query import connect, detail, filters, meta, search
+from journaldb.acronyms import acronym_key, title_acronyms
 
 
 class DatabaseTests(unittest.TestCase):
@@ -15,6 +16,36 @@ class DatabaseTests(unittest.TestCase):
 
     def tearDown(self):
         self.con.close()
+
+    def test_acronym_search_and_ambiguity(self):
+        expected = {"ejm": "EUROPEAN JOURNAL OF MARKETING",
+                    "jcr": "JOURNAL OF CONSUMER RESEARCH",
+                    "jmr": "JOURNAL OF MARKETING RESEARCH",
+                    "jm": "JOURNAL OF MARKETING"}
+        for query, title in expected.items():
+            rows = search(self.con, q=query, limit=500)["results"]
+            self.assertIn(title, {row["title"] for row in rows})
+            # Every initials match precedes ordinary substring hits.
+            matches = {row[0] for row in self.con.execute(
+                "SELECT DISTINCT journal_id FROM aliases WHERE matches_acronym(title, ?)", (query,))}
+            positions = [i for i, row in enumerate(rows) if row["journal_id"] in matches]
+            self.assertEqual(positions, list(range(len(matches))))
+        base = search(self.con, q="ejm", limit=500)
+        self.assertGreater(len(base["results"]), 1)  # Do not collapse initials collisions.
+        for query in ("EJM", "E.J.M.", "e j m", " E-J-M "):
+            self.assertEqual(search(self.con, q=query, limit=500), base)
+        filtered = search(self.con, q="ejm", abdc="A*", limit=500)
+        self.assertIn("EUROPEAN JOURNAL OF MARKETING", {row["title"] for row in filtered["results"]})
+        self.assertTrue(all(row["abdc"] == "A*" for row in filtered["results"]))
+
+    def test_initials_are_derived_from_titles_only(self):
+        self.assertEqual(set(title_acronyms("The Journal of Marketing")), {"jm", "tjom"})
+        self.assertEqual(set(title_acronyms("The Accounting Review")), {"ar", "tar"})
+        self.assertEqual(set(title_acronyms("European Journal of Marketing")), {"ejm", "ejom"})
+        self.assertEqual(title_acronyms("Nature"), ())
+        for query in ("j", "1234-5678", "%_%", "' OR 1=1 --"):
+            self.assertEqual(acronym_key(query), "")
+        self.assertEqual(search(self.con, q="zzzzzzzzzzzz")["total"], 0)
 
     def test_source_record_conservation(self):
         for source in self.con.execute("SELECT * FROM sources"):

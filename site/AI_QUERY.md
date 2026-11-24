@@ -7,6 +7,7 @@
 - `assets/catalogue.json.gz`：gzip JSON 二维数组，按 manifest.columns 映射为对象。
 - `assets/details/{前两位ID}.json.gz`：完整详情分片。ID 为 j_abc... 时分片为 ab。
 - 浏览器界面提供组合查询与 CSV 下载。静态站不提供 /api/journals HTTP 服务。
+- 支持刊名首字母缩写（如 ejm），忽略大小写及连接词；缩写重名时保留全部候选。search_acronyms 为派生检索值，不是官方别名。
 
 Python 读取当前站点数据（BASE 替换为该页面所在目录的 HTTPS 地址）：
 

@@ -27,7 +27,7 @@
   function manifest() {
     if (!cache.manifest) {
       progress(msg('Reading data manifest…', '正在读取静态数据目录…'));
-      cache.manifest = nativeFetch(new URL('manifest.json', assetsURL)).then(async r => {
+      cache.manifest = nativeFetch(new URL('manifest.json', assetsURL), { cache: 'no-cache' }).then(async r => {
         if (!r.ok) throw new Error(msg(`Could not load the data manifest (${r.status}).`, `无法读取数据目录（${r.status}）`));
         return r.json();
       });
@@ -38,7 +38,9 @@
     if (!cache.catalogue) {
       cache.catalogue = (async () => {
         const m = await manifest(); progress(msg('Loading journals…', '正在加载期刊目录…'));
-        const rows = await gzipJSON(new URL(m.catalogue, assetsURL));
+        const catalogueURL = new URL(m.catalogue, assetsURL);
+        if (m.catalogue_sha256) catalogueURL.searchParams.set('v', m.catalogue_sha256);
+        const rows = await gzipJSON(catalogueURL);
         if (!Array.isArray(m.columns) || !Array.isArray(rows)) throw new Error(msg('Invalid data format.', '静态目录格式无效。'));
         const records = rows.map(row => Object.fromEntries(m.columns.map((column, i) => [column, row[i] ?? null])));
         progress(msg(`Loaded ${records.length.toLocaleString()} records.`, `已载入 ${records.length.toLocaleString()} 条本地记录`));
@@ -61,6 +63,12 @@
   const asText = value => String(value ?? '').toLocaleLowerCase();
   const normalize = value => asText(value).normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/&/g, ' and ').replace(/[^\p{L}\p{N}]+/gu, ' ').trim().replace(/^the\s+/, '');
   const queryTokens = value => normalize(value).split(/\s+/).filter(Boolean);
+  const acronymKey = value => {
+    const text = String(value ?? '').trim().toLowerCase();
+    if (!/^[a-z][a-z.\s-]*$/.test(text)) return '';
+    const key = text.replace(/[.\s-]/g, '');
+    return key.length >= 2 && key.length <= 12 ? key : '';
+  };
   const normalizedISSN = value => String(value ?? '').replace(/[^0-9x]/gi, '').toUpperCase();
   const nullableNumber = (value, name) => {
     if (value === null || value === '') return null;
@@ -68,10 +76,12 @@
     if (!Number.isFinite(number) || number < 0) throw new Error(msg(`${name} must be a finite number greater than or equal to 0.`, `${name} 必须是大于或等于 0 的数字。`));
     return number;
   };
-  function compare(a, b, key, order, exactTitle) {
+  function compare(a, b, key, order, exactTitle, acronym) {
     if (key === 'title' && exactTitle) {
-      const exactA = normalize(a.title) === exactTitle, exactB = normalize(b.title) === exactTitle;
+      const exactA = normalize(a.title) === exactTitle || (a.normalized_aliases || []).includes(exactTitle), exactB = normalize(b.title) === exactTitle || (b.normalized_aliases || []).includes(exactTitle);
       if (exactA !== exactB) return exactA ? -1 : 1;
+      const acronymA = !!acronym && (a.search_acronyms || []).includes(acronym), acronymB = !!acronym && (b.search_acronyms || []).includes(acronym);
+      if (acronymA !== acronymB) return acronymA ? -1 : 1;
     }
     const av = a[key], bv = b[key]; const missingA = av === null || av === undefined || av === '';
     const missingB = bv === null || bv === undefined || bv === '';
@@ -91,7 +101,11 @@
     return value === '1';
   }
   function filterAndSort(records, search) {
-    const q = queryTokens(search.get('q'));
+    if (String(search.get('q') || '').trim().length > 500) throw new Error(msg('Search is limited to 500 characters.', '查询词最多 500 字符'));
+    const acronym = acronymKey(search.get('q'));
+    const rawQuery = String(search.get('q') || '').trim();
+    const query = /^(?:[a-z][.\s-]+)+[a-z]\.?$/i.test(rawQuery) && acronym ? acronym : rawQuery;
+    const q = queryTokens(query);
     const exact = [['abdc', 'abdc', new Set(['A*', 'A', 'B', 'C'])], ['ajg', 'ajg', new Set(['4*', '4', '3', '2', '1'])], ['cas', 'cas_zone', new Set(['1', '2', '3', '4'])], ['jcr_quartile', 'jcr_quartile', new Set(['Q1', 'Q2', 'Q3', 'Q4'])], ['sjr_quartile', 'sjr_quartile', new Set(['Q1', 'Q2', 'Q3', 'Q4'])], ['source_type', 'source_type', new Set(['journal', 'book series', 'conference and proceedings', 'trade journal'])]];
     const minIF = nullableNumber(search.get('min_if'), msg('Minimum JIF', '最低 JIF'));
     const sort = search.get('sort') || 'title'; const order = search.get('order') || 'asc';
@@ -101,10 +115,11 @@
     if (!['title', 'impact_factor', 'sjr'].includes(sort)) throw new Error(msg('Unsupported sort field.', '不支持的排序字段。'));
     if (!['asc', 'desc'].includes(order)) throw new Error(msg('Sort order must be asc or desc.', '排序方向必须为 asc 或 desc。'));
     exact.forEach(([parameter, , allowed]) => { if (search.get(parameter) && !allowed.has(search.get(parameter))) throw new Error(msg(`Invalid ${parameter} parameter.`, `${parameter} 参数无效。`)); });
-    const exactTitle = normalize(search.get('q'));
+    const exactTitle = normalize(query);
     let matched = records.filter(record => {
       const text = normalize([record.title, ...(record.normalized_aliases || []), ...(record.issns || []), ...(record.subjects || []), record.search_text || ''].join(' '));
-      if (q.length && !q.every(token => /^[0-9X]{8}$/.test(token.toUpperCase()) ? (record.issns || []).some(issn => normalizedISSN(issn) === token.toUpperCase()) : text.includes(token))) return false;
+      const acronymMatch = !!acronym && (record.search_acronyms || []).includes(acronym);
+      if (q.length && !acronymMatch && !q.every(token => /^[0-9X]{8}$/.test(token.toUpperCase()) ? (record.issns || []).some(issn => normalizedISSN(issn) === token.toUpperCase()) : text.includes(token))) return false;
       if (exact.some(([parameter, field]) => search.get(parameter) && String(record[field] ?? '') !== search.get(parameter))) return false;
       if (ft50 !== null && record.ft50 !== ft50) return false;
       if (utd24 !== null && record.utd24 !== utd24) return false;
@@ -112,7 +127,7 @@
       if (search.get('subject') && !normalize(record.subjects?.join(' ')).includes(normalize(search.get('subject')))) return false;
       return minIF === null || (record.impact_factor !== null && record.impact_factor !== undefined && Number(record.impact_factor) >= minIF);
     });
-    matched = matched.slice().sort((a, b) => compare(a, b, sort, order, exactTitle) || normalize(a.title).localeCompare(normalize(b.title), 'en'));
+    matched = matched.slice().sort((a, b) => compare(a, b, sort, order, exactTitle, acronym) || normalize(a.title).localeCompare(normalize(b.title), 'en'));
     return matched;
   }
   async function api(url, signal) {

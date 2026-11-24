@@ -6,6 +6,7 @@ from pathlib import Path
 
 from . import DEFAULT_DB
 from .build import norm
+from .acronyms import acronym_key, matches_acronym, search_text
 
 
 NOTES = [
@@ -26,6 +27,7 @@ def connect(path=DEFAULT_DB):
         raise FileNotFoundError(f"数据库不存在：{path}。请先运行 python -m journaldb build")
     con = sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)
     con.row_factory = sqlite3.Row
+    con.create_function("matches_acronym", 2, matches_acronym, deterministic=True)
     return con
 
 
@@ -49,6 +51,7 @@ def filters(params):
     q = str(params.get("q", "")).strip()
     if len(q) > 500:
         raise ValueError("查询词最多 500 字符")
+    q = search_text(q)
     if q:
         compact = re.sub(r"[\s-]", "", q).upper()
         if re.fullmatch(r"\d{7}[\dX]", compact):
@@ -59,14 +62,18 @@ def filters(params):
             tokens = re.findall(r"\w+", norm(q), flags=re.UNICODE)
             fts = " AND ".join('"' + token.replace('"', '""') + '"*' for token in tokens)
             normalized = norm(q)
+            acronym = acronym_key(q)
             clauses.append("(c.search_text LIKE ? ESCAPE '\\'" +
                            (" OR c.journal_id IN (SELECT journal_id FROM aliases WHERE normalized_title LIKE ? ESCAPE '\\')" if normalized else "") +
-                           (" OR c.journal_id IN (SELECT journal_id FROM journal_search WHERE journal_search MATCH ?)" if fts else "") + ")")
+                           (" OR c.journal_id IN (SELECT journal_id FROM journal_search WHERE journal_search MATCH ?)" if fts else "") +
+                           (" OR c.journal_id IN (SELECT journal_id FROM aliases WHERE matches_acronym(title, ?))" if acronym else "") + ")")
             values.append(like(q))
             if normalized:
                 values.append(like(normalized))
             if fts:
                 values.append(fts)
+            if acronym:
+                values.append(acronym)
     allowed = {"abdc": ("A*", "A", "B", "C"), "ajg": ("4*", "4", "3", "2", "1"),
                "cas": ("1", "2", "3", "4"), "jcr_quartile": ("Q1", "Q2", "Q3", "Q4"),
                "sjr_quartile": ("Q1", "Q2", "Q3", "Q4"), "ft50": ("0", "1"), "utd24": ("0", "1"),
@@ -116,7 +123,11 @@ def selection(params):
         # A full journal title should be the first result even if all query tokens
         # also occur in other journals' subject labels.
         priority = "NOT EXISTS(SELECT 1 FROM aliases a WHERE a.journal_id=c.journal_id AND a.normalized_title=?),"
-        values.append(norm(params["q"]))
+        values.append(norm(search_text(params["q"])))
+        acronym = acronym_key(params["q"])
+        if acronym:
+            priority += "NOT EXISTS(SELECT 1 FROM aliases a WHERE a.journal_id=c.journal_id AND matches_acronym(a.title, ?)),"
+            values.append(acronym)
     order_sql = f" ORDER BY {priority}c.{sort} IS NULL,c.{sort} COLLATE NOCASE {order},c.journal_id"
     return where, values, order_sql
 

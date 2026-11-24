@@ -18,6 +18,7 @@
 - 双语：`web/i18n.js` 提供 JournalI18n，先于 static-client.js 加载；首次默认英文，记住选择，原始来源不翻译。
 - UI逻辑：`web/app.js` 共用渲染与状态，语言切换只重绘缓存，不重置筛选/页码。静态构建为JS引用加内容哈希参数以避免缓存混用。
 - 筛选交互：下拉框/复选框立即生效，搜索/学科/数值输入防抖250ms；无Apply按钮，Clear重置条件。
+- 缩写检索：journaldb/acronyms.py 从来源别名派生含/不含连接词的首字母（ejm/jcr/jmr等）；只用于发现，保留重名候选。CLI/API只读注册SQLite函数；静态导出search_acronyms，浏览器使用同一派生结果。默认排序先全名再缩写匹配。
 - WoS：四份CSV分别作为SCIE/SSCI/AHCI/ESCI未标年份快照；概览wos_indexes/languages为JSON数组，wos_index参数筛选。不得用JCR年份填充其版次。
 - CAS展示：网页及详情/选项用Q1–Q4，对应原始cas_zone 1–4；保留数值原件和API参数，不与JCR分区合并。
 - 指标解释：web/metric-info.js提供双语官方定义与来源；web/help-popover.js和help.css处理500ms悬停、键盘与触屏，数据值由app.js的data-metric标注。CAS明确为显示映射。
