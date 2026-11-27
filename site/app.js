@@ -535,6 +535,7 @@
     populateTaxonomyControls();
     if ($('#detail').open && state.detailData) renderDetail(state.detailData, true);
   });
+  window.JournalApp = { openDetail };
   metadata();
   load();
 })();

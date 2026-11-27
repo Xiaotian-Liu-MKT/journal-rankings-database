@@ -20,10 +20,12 @@
   <link rel="stylesheet" href="help.css?v=2c78fc4bd369">
   <link rel="stylesheet" href="detail.css?v=8b7fe9f15615">
   <link rel="stylesheet" href="multi-select.css?v=e45afd5d69f2">
+  <link rel="stylesheet" href="special-issues.css?v=212de4c6750a">
 </head>
 <body>
-  <header class="masthead"><div class="brand"><div class="brand-copy"><h1 data-i18n="title">Journal search</h1><p class="subline" data-i18n="description">Search journal rankings, indicators, and source records.</p></div><select id="language" aria-label="Language"><option value="en">English</option><option value="zh">中文</option></select><div class="brand-scene"><img id="brand-logo" src="brand/panda-emperor.png?v=140ae6e6cad0" width="220" height="170" alt="Panda emperor on an ice throne amid swirling wind"></div></div></header>
+  <header class="masthead"><div class="brand"><div class="brand-copy"><h1 data-i18n="title">Journal search</h1><p class="subline" data-i18n="description">Search journal rankings, indicators, and source records.</p><nav class="view-tabs" aria-label="Views"><button type="button" class="view-tab" id="tab-journals" data-view="journals" aria-pressed="true"><span data-i18n="tabJournals">Journal search</span></button><button type="button" class="view-tab" id="tab-special-issues" data-view="special-issues" aria-pressed="false"><span data-i18n="tabSpecialIssues">Special issues</span><span class="view-tab-badge" id="si-tab-badge" hidden>0</span></button></nav></div><select id="language" aria-label="Language"><option value="en">English</option><option value="zh">中文</option></select><div class="brand-scene"><img id="brand-logo" src="brand/panda-emperor.png?v=140ae6e6cad0" width="220" height="170" alt="Panda emperor on an ice throne amid swirling wind"></div></div></header>
   <main>
+    <div id="view-journals">
     <section class="intro"><div><p data-i18n="intro">Blank values mean unavailable or conflicting source data. List matches do not mean zero.</p></div><div class="statline" id="statline">Loading…</div></section>
     <div class="workbench">
       <details class="filters" id="filter-panel" open><summary data-i18n="filters">Filters</summary><div class="filter-content">
@@ -48,15 +50,18 @@
       </section>
     </div>
     <footer><details><summary data-i18n="sources">Data and sources</summary><div id="notes">Loading…</div><p data-i18n="typeNote">Publication-type filtering applies only to records with an SJR type.</p><p data-i18n="casNote">CAS uses Q1–Q4 as display labels for source zones 1–4.</p><ul class="source-list" id="source-list"></ul></details></footer>
+    </div>
+    <section id="view-special-issues" class="si-view" hidden></section>
   </main>
   <dialog id="detail" aria-labelledby="detail-title"><div class="drawer-head"><h2 id="detail-title">期刊详情</h2><button class="drawer-close" id="close-detail" aria-label="关闭详情">×</button></div><div class="drawer-body" id="detail-body"></div></dialog>
-  <script src="i18n.js?v=f6fe9f621a13"></script>
-  <script src="static-client.js?v=57a9eb607c14"></script>
+  <script src="i18n.js?v=6ce1f74facac"></script>
+  <script src="static-client.js?v=e4e864a9680f"></script>
   <script src="metric-info.js?v=d9123072246c"></script>
   <script src="journal-title.js?v=92738b128b86"></script>
   <script src="multi-select.js?v=4e3e580601c8"></script>
-  <script src="app.js?v=dd949457c22e"></script>
+  <script src="app.js?v=d5a1a532ab3d"></script>
   <script src="help-popover.js?v=96e6e84c053a"></script>
+  <script src="special-issues.js?v=a15c9b25a9e3"></script>
 
 </body>
 </html>

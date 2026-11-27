@@ -9,6 +9,7 @@ from . import ROOT, DEFAULT_DB
 from .build import dumps
 from .acronyms import title_acronyms
 from .query import connect, decode, meta
+from .special_issues import DEFAULT_SPECIAL_ISSUES
 
 
 def write_gzip(path, obj):
@@ -59,7 +60,10 @@ def export_site(database=DEFAULT_DB, destination=None):
         for shard, content in shards.items():
             write_gzip(details_dir / f"{shard}.json.gz", content)
         catalogue_hash = hashlib.sha256((assets / "catalogue.json.gz").read_bytes()).hexdigest()[:12]
-        metadata.update({"columns": columns, "catalogue": "catalogue.json.gz", "catalogue_sha256": catalogue_hash, "detail_base": "details/", "detail_encoding": "gzip", "snapshot_version": 1})
+        special_issues_bytes = DEFAULT_SPECIAL_ISSUES.read_bytes()
+        (assets / "special-issues.json").write_bytes(special_issues_bytes)
+        special_issues_hash = hashlib.sha256(special_issues_bytes).hexdigest()[:12]
+        metadata.update({"columns": columns, "catalogue": "catalogue.json.gz", "catalogue_sha256": catalogue_hash, "special_issues": "special-issues.json", "special_issues_sha256": special_issues_hash, "detail_base": "details/", "detail_encoding": "gzip", "snapshot_version": 1})
         (assets / "manifest.json").write_text(dumps(metadata), encoding="utf-8")
         html = (ROOT / "web" / "index.html").read_text(encoding="utf-8")
         html = html.replace("<head>", "<head>\n  <script>window.JOURNAL_STATIC=true;</script>", 1)
@@ -67,7 +71,7 @@ def export_site(database=DEFAULT_DB, destination=None):
         if '<script src="static-client.js"></script>' not in html:
             html = html.replace("  <script>\n  (()=>", '  <script src="static-client.js"></script>\n  <script>\n  (()=>', 1)
         html = html.replace("LOCAL EDITION", "WEB EDITION")
-        web_assets = ("i18n.js", "static-client.js", "metric-info.js", "journal-title.js", "app.js", "help-popover.js", "help.css", "detail.css", "multi-select.js", "multi-select.css", "brand/panda-throne.png", "brand/panda-emperor.png")
+        web_assets = ("i18n.js", "static-client.js", "metric-info.js", "journal-title.js", "app.js", "help-popover.js", "help.css", "detail.css", "multi-select.js", "multi-select.css", "special-issues.js", "special-issues.css", "brand/panda-throne.png", "brand/panda-emperor.png")
         for filename in web_assets:
             version = hashlib.sha256((ROOT / "web" / filename).read_bytes()).hexdigest()[:12]
             html = html.replace(f'src="{filename}"', f'src="{filename}?v={version}"')

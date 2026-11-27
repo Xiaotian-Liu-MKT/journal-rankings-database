@@ -6,7 +6,7 @@
 
   const assetsURL = new URL('./assets/', window.location.href);
   const nativeFetch = window.fetch.bind(window);
-  const cache = { manifest: null, catalogue: null, details: new Map() };
+  const cache = { manifest: null, catalogue: null, specialIssues: null, details: new Map() };
   const msg = (en, zh) => window.JournalI18n?.locale === 'zh' ? zh : en;
   const progress = message => window.dispatchEvent(new CustomEvent('journal-static-progress', { detail: { message } }));
   const abortError = () => new DOMException(msg('Request cancelled.', '请求已取消'), 'AbortError');
@@ -48,6 +48,19 @@
       })();
     }
     return cache.catalogue;
+  }
+  async function specialIssues() {
+    if (!cache.specialIssues) {
+      cache.specialIssues = (async () => {
+        const m = await manifest();
+        const url = new URL(m.special_issues || 'special-issues.json', assetsURL);
+        if (m.special_issues_sha256) url.searchParams.set('v', m.special_issues_sha256);
+        const response = await nativeFetch(url);
+        if (!response.ok) throw new Error(msg(`Could not load special issues (${response.status}).`, `无法读取特刊数据（${response.status}）`));
+        return response.json();
+      })();
+    }
+    return cache.specialIssues;
   }
   async function journalDetail(id) {
     const shard = String(id).slice(2, 4).toLowerCase();
@@ -184,6 +197,10 @@
       const m = await manifest();
       return jsonResponse({ stats: m.stats || {}, sources: m.sources || [], notes: m.notes || [], taxonomy: m.taxonomy });
     }
+    if (path.endsWith('/api/special-issues')) {
+      const data = await specialIssues(); ensureNotAborted(signal);
+      return jsonResponse(data);
+    }
     const detail = path.match(/\/api\/journals\/([^/]+)$/);
     if (detail) {
       const found = await journalDetail(decodeURIComponent(detail[1])); ensureNotAborted(signal);
@@ -203,7 +220,7 @@
     const request = input instanceof Request ? input : null;
     const url = new URL(request ? request.url : input, window.location.href);
     const signal = init.signal || request?.signal;
-    if (!/\/api\/(?:meta|journals)(?:\/|$)/.test(url.pathname)) return nativeFetch(input, init);
+    if (!/\/api\/(?:meta|journals|special-issues)(?:\/|$)/.test(url.pathname)) return nativeFetch(input, init);
     try { return await api(url, signal); }
     catch (error) {
       if (error.name === 'AbortError') throw error;

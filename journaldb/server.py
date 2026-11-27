@@ -9,6 +9,7 @@ from urllib.parse import parse_qs, urlparse
 
 from . import ROOT, DEFAULT_DB
 from .query import MULTI_FILTERS, connect, decode, detail, meta, search, selection
+from .special_issues import load_special_issues
 
 
 def serve(database=DEFAULT_DB, port=8765, open_browser=False):
@@ -59,10 +60,10 @@ def serve(database=DEFAULT_DB, port=8765, open_browser=False):
             if parsed.path in ("/", "/index.html"):
                 self.respond(200, (ROOT / "web" / "index.html").read_bytes(), "text/html; charset=utf-8")
                 return
-            if parsed.path in ("/static-client.js", "/i18n.js", "/app.js", "/journal-title.js", "/metric-info.js", "/help-popover.js", "/multi-select.js"):
+            if parsed.path in ("/static-client.js", "/i18n.js", "/app.js", "/journal-title.js", "/metric-info.js", "/help-popover.js", "/multi-select.js", "/special-issues.js"):
                 self.respond(200, (ROOT / "web" / parsed.path[1:]).read_bytes(), "application/javascript; charset=utf-8")
                 return
-            if parsed.path in ("/help.css", "/detail.css", "/multi-select.css"):
+            if parsed.path in ("/help.css", "/detail.css", "/multi-select.css", "/special-issues.css"):
                 self.respond(200, (ROOT / "web" / parsed.path[1:]).read_bytes(), "text/css; charset=utf-8")
                 return
             if parsed.path in ("/brand/panda-throne.png", "/brand/panda-emperor.png"):
@@ -70,6 +71,12 @@ def serve(database=DEFAULT_DB, port=8765, open_browser=False):
                 return
             if parsed.path == "/favicon.ico":
                 self.respond(204, b"", "image/x-icon")
+                return
+            if parsed.path == "/api/special-issues":
+                try:
+                    self.respond(200, load_special_issues())
+                except (OSError, ValueError):
+                    self.respond(500, {"error": "特刊数据读取失败"})
                 return
             con = connect(database)
             try:
