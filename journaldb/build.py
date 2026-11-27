@@ -9,7 +9,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import ROOT, DEFAULT_DB
+from . import DEFAULT_DB, DEFAULT_SOURCE_DIR
 from .classifications import current_taxonomy_paths
 
 
@@ -150,7 +150,7 @@ TITLE_ALIASES = {
 }
 
 
-def build(root=ROOT, destination=DEFAULT_DB):
+def build(root=DEFAULT_SOURCE_DIR, destination=DEFAULT_DB):
     root, destination = Path(root), Path(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
     tmp = destination.with_suffix(".building.sqlite")

@@ -2,7 +2,7 @@ import argparse
 import json
 import sys
 
-from . import DEFAULT_DB
+from . import DEFAULT_DB, DEFAULT_SOURCE_DIR
 
 
 def main():
@@ -10,7 +10,7 @@ def main():
     parser.add_argument("--db", default=str(DEFAULT_DB), help="SQLite 路径")
     commands = parser.add_subparsers(dest="command", required=True)
     build = commands.add_parser("build", help="从原始文件重建数据库及 CSV/JSONL")
-    build.add_argument("--source-dir", default=None)
+    build.add_argument("--source-dir", default=None, help="原始数据目录（默认 sources/）")
     query = commands.add_parser("search", help="搜索刊名、ISSN 或学科")
     query.add_argument("q", nargs="?", default="")
     multi_names = {"abdc", "ajg", "cas", "jcr-quartile", "sjr-quartile",
@@ -31,8 +31,7 @@ def main():
     try:
         if args.command == "build":
             from .build import build
-            from . import ROOT
-            build(args.source_dir or ROOT, args.db)
+            build(args.source_dir or DEFAULT_SOURCE_DIR, args.db)
             return
         if args.command == "serve":
             from .server import serve

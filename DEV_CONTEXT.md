@@ -2,7 +2,7 @@
 
 - 根目录：`E:/GitHub/期刊分区表`。
 - 产品：本地 SQLite 期刊评级库；中文检索网页与 AI CLI/API 共用查询层。
-- 原件：根目录原8份 TXT/CSV/XLSX加SCIE.csv、SSCI.csv、AHCI.csv、ESCI.csv；JCR两份内容相同，ABDC一个工作簿含6个版本。原件不改。
+- 原件：`sources/` 目录原8份 TXT/CSV/XLSX加SCIE.csv、SSCI.csv、AHCI.csv、ESCI.csv；JCR两份内容相同，ABDC一个工作簿含6个版本。原件不改。
 - 主库：`data/journals.sqlite`；概览导出：`data/journals.csv`、`data/journals.jsonl`。
 - 导入：`journaldb/build.py`，结构：`journaldb/schema.sql`，只读查询：`journaldb/query.py`。
 - Web：`web/index.html`，服务：`journaldb/server.py`。默认仅监听 `127.0.0.1:8765`。
@@ -27,5 +27,5 @@
 - CAS展示：网页及详情/选项用Q1–Q4，对应原始cas_zone 1–4；保留数值原件和API参数，不与JCR分区合并。
 - 指标解释：web/metric-info.js提供双语官方定义与来源；web/help-popover.js和help.css处理500ms悬停、键盘与触屏，数据值由app.js的data-metric标注。CAS明确为显示映射。
 - 品牌：web/brand/panda-emperor.png为用户提供的冰霜王座熊猫帝王原图，原样复制，融入冰蓝页眉并作favicon；静态同步至site/brand/。先前imagegen透明徽标panda-throne.png保留。
-- Pages：`.github/workflows/pages.yml`，main推送部署site/。根目录原始文件及data/由.gitignore排除，不上Git。
+- Pages：`.github/workflows/pages.yml`，main推送部署site/。`sources/` 原始文件及 `data/` 由 .gitignore 排除，不上Git。
 - 维护边界：新增版次需同步来源识别与 current 年份配置；不得用历史评级填补新版本缺失。不默认生成诊断文件或运行日志。

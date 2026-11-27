@@ -10,7 +10,7 @@
 
 在具体评级、指标或索引标记上停留约半秒，可查看中英文解释、当前值的含义与官方说明链接。键盘聚焦也可查看，手机可点按打开；浮窗支持关闭和 Esc。
 
-仓库发布代码及 `site/` 静态数据快照。本地原始文件、SQLite、CSV/JSONL 导出不上传 Git。原始资料保留在本地，以下 CLI 命令用于本地完整项目。
+仓库发布代码及 `site/` 静态数据快照。`sources/` 本地原始文件、`data/`（SQLite、CSV/JSONL 导出）不上传 Git。原始资料保留在本地，以下 CLI 命令用于本地完整项目。
 
 ## 发布与更新
 
@@ -61,7 +61,7 @@ SQLite 位于 `data/journals.sqlite`。不启动网页也能直接用 Python `sq
 
 ## 数据来源与含义
 
-| 体系 | 使用的本地文件 | 概览版本 |
+| 体系 | 使用的本地文件（位于 `sources/`） | 概览版本 |
 |---|---|---|
 | JCR / JIF | 2025 Journal Impact Factor.txt；JCR 2026 最新数据（2025 年指标）.txt | 源表头标注 2025，未独立核验 |
 | SCImago / SJR | scimagojr 2025.csv | 2025 |

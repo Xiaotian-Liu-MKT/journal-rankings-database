@@ -4,7 +4,7 @@ import sqlite3
 import unittest
 from pathlib import Path
 
-from journaldb import ROOT, DEFAULT_DB
+from journaldb import ROOT, DEFAULT_DB, DEFAULT_SOURCE_DIR
 from journaldb.build import issn, norm
 from journaldb.query import connect, detail, filters, meta, search
 from journaldb.acronyms import acronym_key, title_acronyms
@@ -113,12 +113,12 @@ class DatabaseTests(unittest.TestCase):
             self.assertEqual(source["row_count"], actual, source["source_id"])
         self.assertEqual(self.con.execute("SELECT sum(row_count) FROM sources").fetchone()[0], self.con.execute("SELECT count(*) FROM observations").fetchone()[0])
         for filename, delimiter in (("2025 Journal Impact Factor.txt", ","), ("scimagojr 2025.csv", ";"), ("FT50.txt", ","), ("UTD24.txt", ",")):
-            with (ROOT / filename).open(encoding="utf-8-sig", newline="") as f:
+            with (DEFAULT_SOURCE_DIR / filename).open(encoding="utf-8-sig", newline="") as f:
                 expected = len(list(csv.reader(f, delimiter=delimiter))) - 1
             actual = self.con.execute("SELECT sum(row_count) FROM sources WHERE filename=?", (filename,)).fetchone()[0]
             self.assertEqual(expected, actual)
         for filename in ("SCIE.csv", "SSCI.csv", "AHCI.csv", "ESCI.csv"):
-            with (ROOT / filename).open(encoding="utf-8-sig", newline="") as f:
+            with (DEFAULT_SOURCE_DIR / filename).open(encoding="utf-8-sig", newline="") as f:
                 expected = len(list(csv.reader(f))) - 1
             source = self.con.execute("SELECT * FROM sources WHERE filename=?", (filename,)).fetchone()
             self.assertIsNotNone(source)
