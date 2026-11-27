@@ -6,6 +6,22 @@
 .view-tab[aria-pressed="true"]{background:#fff;color:#175cd3;box-shadow:0 1px 2px rgba(16,24,40,.08)}
 .view-tab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:#eff6ff;color:#175cd3;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums}
 .view-tab[aria-pressed="true"] .view-tab-badge{background:#dbeafe;color:#1d4ed8}
+.view-tab-dot{width:7px;height:7px;border-radius:999px;background:#d97706;flex-shrink:0}
+
+/* 7-day staleness reminder toast (fixed position: zero layout shift) */
+.si-toast{position:fixed;right:20px;bottom:20px;z-index:40;max-width:min(380px,calc(100vw - 32px));padding:13px 15px;border:1px solid #f59e0b;border-radius:8px;background:#fffbeb;color:#78350f;box-shadow:0 10px 30px rgba(16,24,40,.14);font-size:13px;line-height:1.5}
+.si-toast[hidden]{display:none}
+.si-toast-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.si-toast-title{font-weight:700;color:#92400e;margin:0}
+.si-toast-close{appearance:none;border:0;background:transparent;color:#92400e;font-size:18px;line-height:1;padding:0 2px;cursor:pointer;flex-shrink:0}
+.si-toast-close:hover{color:#451a03}
+.si-toast-msg{margin:4px 0 10px;color:#78350f;font-size:12.5px}
+.si-toast-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.si-toast-btn{border:1px solid #d97706;border-radius:5px;background:#d97706;color:#fff;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer}
+.si-toast-btn:hover{background:#b45309;border-color:#b45309}
+.si-toast-btn.alt{background:#fff;color:#92400e;border-color:#f59e0b}
+.si-toast-btn.alt:hover{background:#fef3c7}
+@media(max-width:600px){.si-toast{right:16px;left:16px;bottom:16px;max-width:none}}
 
 /* Special Issues view — isolated with si- prefix */
 .si-view{display:flex;flex-direction:column;gap:16px;min-width:0}

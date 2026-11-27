@@ -28,6 +28,9 @@
     unknown: ['TBA', '日期待定']
   };
 
+  const STALE_DAYS = 7;
+  const REFRESH_PROMPT = '请帮我刷新 E:\\GitHub\\期刊分区表 的 ABDC A* Special Issues 数据并推送到 GitHub Pages';
+
   const state = {
     view: 'journals',
     data: null,
@@ -39,7 +42,9 @@
     openOnly: true,
     sort: 'deadline',
     coverageOpen: false,
-    built: false
+    built: false,
+    staleDismissed: false,
+    copiedTimer: null
   };
 
   function parseLocalDate(str) {
@@ -94,12 +99,122 @@
     return { byDomain, byJournal };
   }
 
+  function daysSinceUpdate(data) {
+    const updated = parseLocalDate(data?.updated_at);
+    if (!updated) return null;
+    return Math.round((localToday().getTime() - updated.getTime()) / 86400000);
+  }
+
+  function isStaleDismissed(updatedAt) {
+    if (state.staleDismissed) return true;
+    try {
+      return Boolean(updatedAt && sessionStorage.getItem('si-stale-dismissed') === updatedAt);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function renderStaleReminder() {
+    if (!state.data) return;
+    const age = daysSinceUpdate(state.data);
+    const isStale = age !== null && age >= STALE_DAYS;
+
+    // Subtle dot on the Special Issues tab when stale
+    const tabSi = $('#tab-special-issues');
+    if (tabSi) {
+      let dot = $('#si-tab-stale-dot');
+      if (isStale && !dot) {
+        dot = node('span', '', {
+          id: 'si-tab-stale-dot',
+          class: 'view-tab-dot',
+          'aria-hidden': 'true'
+        });
+        tabSi.append(dot);
+      }
+      if (dot) {
+        dot.hidden = !isStale;
+        dot.title = tr(
+          `Special issues data is ${age} days old`,
+          `特刊数据已 ${age} 天未刷新`
+        );
+      }
+    }
+
+    let toast = $('#si-stale-toast');
+    if (!isStale || isStaleDismissed(state.data.updated_at)) {
+      if (toast) toast.hidden = true;
+      return;
+    }
+
+    if (!toast) {
+      toast = node('aside', undefined, {
+        id: 'si-stale-toast',
+        class: 'si-toast',
+        role: 'status',
+        'aria-live': 'polite'
+      });
+      document.body.append(toast);
+    }
+
+    const head = node('div', undefined, { class: 'si-toast-head' });
+    head.append(node('p', tr('Special issues refresh reminder', '特刊征稿刷新提醒'), { class: 'si-toast-title' }));
+    const closeBtn = node('button', '×', {
+      type: 'button',
+      class: 'si-toast-close',
+      'aria-label': tr('Dismiss reminder', '关闭提醒')
+    });
+    closeBtn.addEventListener('click', () => {
+      state.staleDismissed = true;
+      try { sessionStorage.setItem('si-stale-dismissed', state.data.updated_at || ''); } catch (_) {}
+      toast.hidden = true;
+    });
+    head.append(closeBtn);
+
+    const msg = node('p', tr(
+      `Last updated ${state.data.updated_at} (${age} days ago, over ${STALE_DAYS} days). Refresh locally and push to update GitHub Pages.`,
+      `特刊数据上次更新于 ${state.data.updated_at}（已过 ${age} 天，超过 ${STALE_DAYS} 天）。建议到本地让 AI 刷新并推送更新。`
+    ), { class: 'si-toast-msg' });
+
+    const actions = node('div', undefined, { class: 'si-toast-actions' });
+    const copyBtn = node('button', tr('Copy refresh prompt', '复制刷新指令'), {
+      type: 'button',
+      class: 'si-toast-btn',
+      id: 'si-toast-copy'
+    });
+    copyBtn.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(REFRESH_PROMPT);
+        copyBtn.textContent = tr('Copied!', '已复制！');
+      } catch (_) {
+        window.prompt(tr('Copy this prompt:', '请复制以下指令：'), REFRESH_PROMPT);
+      }
+      clearTimeout(state.copiedTimer);
+      state.copiedTimer = setTimeout(() => {
+        if ($('#si-toast-copy')) $('#si-toast-copy').textContent = tr('Copy refresh prompt', '复制刷新指令');
+      }, 2000);
+    });
+    actions.append(copyBtn);
+
+    if (state.view !== 'special-issues') {
+      const goBtn = node('button', tr('View special issues', '查看特刊页'), {
+        type: 'button',
+        class: 'si-toast-btn alt'
+      });
+      goBtn.addEventListener('click', () => setView('special-issues', true));
+      actions.append(goBtn);
+    }
+
+    toast.replaceChildren(head, msg, actions);
+    toast.hidden = false;
+  }
+
   function updateTabBadge() {
     const badge = $('#si-tab-badge');
     if (!badge || !state.data) return;
     const { byDomain } = computeLiveCounts(state.data);
     badge.textContent = String(byDomain.all);
     badge.hidden = false;
+    renderStaleReminder();
   }
 
   function setView(next, updateHash = true) {
@@ -125,6 +240,7 @@
       if (state.status === 'idle') loadData();
       else renderView();
     }
+    renderStaleReminder();
   }
 
   function ensureBuilt() {
@@ -567,6 +683,7 @@
     window.addEventListener('hashchange', syncFromHash);
     window.addEventListener('journal-locale-change', () => {
       if (state.view === 'special-issues') renderView();
+      renderStaleReminder();
     });
     syncFromHash();
     loadData();
